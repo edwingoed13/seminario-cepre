@@ -1,6 +1,6 @@
 <template>
   <div class="bg-surface text-on-surface min-h-screen">
-    <UiTopAppBar :show-nav="true" :active-route="activeRoute" :user-name="userName" />
+    <UiTopAppBar :show-nav="true" :active-route="activeRoute" :user-name="userName" :user-foto="userFoto" />
     <main class="pt-28 pb-32 px-6 max-w-7xl mx-auto">
       <slot />
     </main>
@@ -12,7 +12,14 @@
 const route = useRoute()
 
 const { user } = useAuth()
-const userName = computed(() => user.value?.user_metadata?.nombre || 'Estudiante')
+const userName = computed(() => {
+  if (!user.value) return 'Estudiante'
+  return user.value.nombres
+    ? `${user.value.nombres} ${user.value.paterno}`
+    : 'Estudiante'
+})
+
+const userFoto = computed(() => user.value?.foto || null)
 
 const activeRoute = computed(() => {
   if (route.path.startsWith('/curso')) return 'cursos'

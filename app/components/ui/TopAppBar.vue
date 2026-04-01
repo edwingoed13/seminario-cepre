@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{
   userName?: string
+  userFoto?: string | null
   showNav?: boolean
   activeRoute?: string
 }>()
@@ -38,9 +39,19 @@ const { logout } = useAuth()
           <p class="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Estudiante</p>
           <p class="text-sm font-bold text-on-surface">{{ userName }}</p>
         </div>
+        <img
+          v-if="userFoto"
+          :src="userFoto"
+          :alt="userName"
+          class="w-10 h-10 rounded-full object-cover border-2 border-primary/20"
+          referrerpolicy="no-referrer"
+        />
+        <div v-else class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white">
+          <span class="material-symbols-outlined text-sm">person</span>
+        </div>
         <button
           @click="logout"
-          class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white hover:bg-primary transition-colors"
+          class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-secondary hover:bg-error hover:text-white transition-colors"
           title="Cerrar sesión"
         >
           <span class="material-symbols-outlined text-sm">logout</span>

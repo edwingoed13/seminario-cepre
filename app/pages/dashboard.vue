@@ -4,9 +4,9 @@ definePageMeta({ layout: 'auth', middleware: 'auth' })
 const { fetchCursos } = useCursos()
 
 const fallbackCursos = [
-  { id: '1', nombre: 'Quechua', descripcion: 'Aprende la lengua de los Incas, enfocada en gramática andina y conversación.', nivel: 'Básico', icono: 'language_pinyin' },
-  { id: '2', nombre: 'Aimara', descripcion: 'Estudio profundo de la fonética y estructura social del idioma Aimara contemporáneo.', nivel: 'Intermedio', icono: 'translate' },
-  { id: '3', nombre: 'Inglés', descripcion: 'Preparación para exámenes internacionales y comunicación global efectiva.', nivel: 'Avanzado', icono: 'public' },
+  { id: '1', nombre: 'Quechua', descripcion: 'Aprende la lengua de los Incas, enfocada en gramática andina y conversación.', icono: 'language_pinyin' },
+  { id: '2', nombre: 'Aimara', descripcion: 'Estudio profundo de la fonética y estructura social del idioma Aimara contemporáneo.', icono: 'translate' },
+  { id: '3', nombre: 'Inglés', descripcion: 'Preparación para exámenes internacionales y comunicación global efectiva.', icono: 'public' },
 ]
 
 const cursos = ref<any[]>(fallbackCursos)
@@ -74,7 +74,6 @@ onMounted(() => {
         :id="curso.id"
         :nombre="curso.nombre"
         :descripcion="curso.descripcion"
-        :nivel="curso.nivel"
         :icono="curso.icono"
       />
     </section>

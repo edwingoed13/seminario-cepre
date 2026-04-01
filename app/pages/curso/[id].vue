@@ -3,101 +3,132 @@ definePageMeta({ layout: 'auth', middleware: 'auth' })
 
 const route = useRoute()
 const cursoId = route.params.id as string
-const { fetchCurso, fetchSemanas, fetchMateriales, fetchVideos } = useCursos()
+const supabase = useSupabaseClient()
 
 const curso = ref<any>(null)
 const semanas = ref<any[]>([])
-const materiales = ref<any[]>([])
-const videos = ref<any[]>([])
+const videosMap = ref<Record<string, any[]>>({})
+const materialesMap = ref<Record<string, any[]>>({})
 const loading = ref(true)
+const semanaActiva = ref<string | null>(null)
+const temarioAbierto = ref(false)
 
-// Datos de cronograma estáticos (del diseño Stitch)
-const cronograma = [
-  { fecha: '11 de abril', dia: 'Jueves', actual: true },
-  { fecha: '25 abril', dia: '', actual: false },
-  { fecha: '9 mayo', dia: '', actual: false },
-  { fecha: '23 mayo', dia: '', actual: false },
-  { fecha: '30 mayo', dia: '', actual: false },
-  { fecha: '6 junio', dia: '', actual: false, bloqueado: true },
-  { fecha: '13 junio', dia: '', actual: false, bloqueado: true },
-  { fecha: '20 junio', dia: '', actual: false, bloqueado: true },
-]
+// Horario en vivo: sábados de 9am a 1pm (hora Perú, UTC-5)
+const isEnVivo = computed(() => {
+  const now = new Date()
+  const peruOffset = -5
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000
+  const peruTime = new Date(utc + peruOffset * 3600000)
+  const dia = peruTime.getDay() // 6 = sábado
+  const hora = peruTime.getHours()
+  return dia === 6 && hora >= 9 && hora < 13
+})
 
-const horarios = [
-  { curso: 'Aimara', hora: '9:00 – 10:20', activo: false },
-  { curso: 'Quechua', hora: '10:20 – 11:40', activo: true },
-  { curso: 'Inglés', hora: '11:40 – 13:00', activo: false },
-]
-
-const clasesGrabadas = [
-  { semana: 'Semana 1', titulo: 'Introducción al Quechua Collao' },
-  { semana: 'Semana 2', titulo: 'Pronombres y Saludos' },
-  { semana: 'Semana 3', titulo: 'Sufijos posesivos' },
-]
-
-// Fallback de cursos estáticos
-const cursosMap: Record<string, any> = {
-  '1': { nombre: 'Quechua', descripcion: 'Explora la riqueza del Runa Simi. Domina la comunicación, gramática y cosmovisión andina.' },
-  '2': { nombre: 'Aimara', descripcion: 'Estudio profundo de la fonética y estructura social del idioma Aimara contemporáneo.' },
-  '3': { nombre: 'Inglés', descripcion: 'Preparación para exámenes internacionales y comunicación global efectiva.' },
+// Formatear fecha correctamente
+const formatFecha = (fechaStr: string) => {
+  const fecha = new Date(fechaStr + 'T12:00:00')
+  const opciones: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' }
+  const diaOpciones: Intl.DateTimeFormatOptions = { weekday: 'long' }
+  const fechaFormateada = fecha.toLocaleDateString('es-PE', opciones)
+  const diaSemana = fecha.toLocaleDateString('es-PE', diaOpciones)
+  return { fecha: fechaFormateada, dia: diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1) }
 }
 
-onMounted(() => {
-  // Usar datos estáticos directamente (Supabase se conecta cuando esté configurado)
-  curso.value = cursosMap[cursoId] || { nombre: 'Curso', descripcion: 'Descripción del curso.' }
-
-  // Intentar cargar desde Supabase en segundo plano
-  fetchCurso(cursoId)
-    .then(data => { if (data) curso.value = data })
-    .catch(() => {})
-
-  fetchSemanas(cursoId)
-    .then(data => { if (data?.length) semanas.value = data })
-    .catch(() => {})
-
-  loading.value = false
+// Determinar semana actual según fecha
+const semanaActual = computed(() => {
+  const hoy = new Date()
+  for (let i = semanas.value.length - 1; i >= 0; i--) {
+    const fechaSemana = new Date(semanas.value[i].fecha + 'T12:00:00')
+    if (hoy >= fechaSemana) return semanas.value[i]
+  }
+  return semanas.value[0] || null
 })
+
+onMounted(async () => {
+  try {
+    // Cargar curso
+    const { data: cursoData } = await supabase.from('cursos').select('*').eq('id', cursoId).single()
+    curso.value = cursoData
+
+    // Cargar semanas
+    const { data: semanasData } = await supabase.from('semanas').select('*').eq('curso_id', cursoId).order('numero_semana')
+    semanas.value = semanasData || []
+
+    if (semanas.value.length > 0) {
+      semanaActiva.value = semanaActual.value?.id || semanas.value[0].id
+
+      // Cargar videos y materiales de todas las semanas
+      const semanaIds = semanas.value.map(s => s.id)
+
+      const [videosRes, materialesRes] = await Promise.all([
+        supabase.from('videos').select('*').in('semana_id', semanaIds),
+        supabase.from('materiales').select('*').in('semana_id', semanaIds),
+      ])
+
+      // Agrupar por semana
+      for (const v of (videosRes.data || [])) {
+        if (!videosMap.value[v.semana_id]) videosMap.value[v.semana_id] = []
+        videosMap.value[v.semana_id].push(v)
+      }
+      for (const m of (materialesRes.data || [])) {
+        if (!materialesMap.value[m.semana_id]) materialesMap.value[m.semana_id] = []
+        materialesMap.value[m.semana_id].push(m)
+      }
+    }
+  } catch (e) {
+    console.error('Error cargando curso:', e)
+  } finally {
+    loading.value = false
+  }
+})
+
+const semanaSeleccionada = computed(() => semanas.value.find(s => s.id === semanaActiva.value))
+const videosActivos = computed(() => videosMap.value[semanaActiva.value || ''] || [])
+const materialesActivos = computed(() => materialesMap.value[semanaActiva.value || ''] || [])
+const videosGrabados = computed(() => videosActivos.value.filter(v => v.tipo === 'grabado'))
+const videosEnVivo = computed(() => videosActivos.value.filter(v => v.tipo === 'en_vivo'))
 </script>
 
 <template>
-  <div v-if="!loading">
+  <div v-if="!loading && curso">
     <!-- Hero Section -->
     <section class="relative overflow-hidden rounded-3xl mb-8 bg-gradient-to-br from-primary to-primary-container p-8 md:p-12 text-on-primary">
-      <div class="relative z-10 grid md:grid-cols-2 gap-8 items-center">
-        <div>
-          <span class="font-label font-bold uppercase tracking-[0.2em] text-white/70 mb-2 block">Idioma Nativo</span>
-          <h2 class="font-headline font-extrabold text-4xl md:text-6xl mb-4 leading-tight">
-            Curso de {{ curso?.nombre }}
-          </h2>
-          <p class="text-on-primary-container text-lg opacity-90 max-w-md">
-            {{ curso?.descripcion }}
-          </p>
-          <div class="mt-8 flex gap-4">
-            <button class="bg-surface-container-lowest text-primary font-bold px-8 py-4 rounded-xl flex items-center gap-2 active:scale-95 duration-200 shadow-xl">
-              <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_circle</span>
-              Continuar Clase
-            </button>
-          </div>
-        </div>
-        <div class="hidden md:flex justify-end">
-          <div class="relative">
-            <div class="absolute -top-4 -left-4 bg-tertiary text-white px-4 py-2 rounded-full font-bold shadow-lg flex items-center gap-2 z-10">
-              <span class="material-symbols-outlined text-sm">verified</span>
-              Oficial CEPREUNA
-            </div>
-            <img
-              alt="Cultura andina"
-              class="rounded-2xl shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-500 w-80 h-auto"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuANKW4uPPQ-xrq3FfZsDi2drjRvuvKV3IbnML3KLYjhvRqg6TvYL4UXIasdMbtGvo9jnS2zyA8mp5lOhBVyccA1w5vVs70mbjv--XYO8IpalC09ew8vo5lmZfXNJKaAOmtV8qzO0AjxJxj2TF_gcWVsNMKhLKwy1dpsSACSU5-hT3FGwnePT2QRcX6IJrX2zhgUw0_Pq1vglUbi8Ig9FaYYbsXr4S1QNIg9d5LQ_skUVvhos9cPl8DoChGzcQ2HveOq1Zrn1M45Gnc"
-            />
-          </div>
-        </div>
+      <div class="relative z-10">
+        <span class="font-label font-bold uppercase tracking-[0.2em] text-white/70 mb-2 block">Seminario de Idiomas</span>
+        <h2 class="font-headline font-extrabold text-4xl md:text-6xl mb-4 leading-tight">
+          Curso de {{ curso.nombre }}
+        </h2>
+        <p class="text-on-primary-container text-lg opacity-90 max-w-md">
+          {{ curso.descripcion }}
+        </p>
       </div>
       <div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-      <div class="absolute bottom-0 left-0 w-48 h-48 bg-primary-container/30 rounded-full -ml-24 -mb-24 blur-2xl"></div>
     </section>
 
-    <!-- Main Bento Grid -->
+    <!-- Temario del Curso (colapsable) -->
+    <section v-if="curso.temario" class="bg-surface-container-lowest rounded-3xl shadow-sm mb-6 overflow-hidden">
+      <button @click="temarioAbierto = !temarioAbierto" class="w-full flex items-center justify-between p-6 hover:bg-surface-container-low transition-colors">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary">menu_book</span>
+          <h3 class="font-headline font-bold text-xl">Temario del Curso</h3>
+        </div>
+        <span class="material-symbols-outlined text-secondary transition-transform duration-300" :class="temarioAbierto ? 'rotate-180' : ''">expand_more</span>
+      </button>
+      <div v-show="temarioAbierto" class="px-6 pb-6">
+        <ul class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <li
+            v-for="(tema, i) in curso.temario.split('\n').filter((t: string) => t.trim())"
+            :key="i"
+            class="flex items-start gap-3 p-3 rounded-xl bg-surface border border-outline-variant/10"
+          >
+            <span class="material-symbols-outlined text-primary text-[18px] mt-0.5 shrink-0">check_circle</span>
+            <span class="text-sm text-on-surface leading-relaxed">{{ tema }}</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Main Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Left: Cronograma -->
       <div class="lg:col-span-1 space-y-6">
@@ -106,49 +137,28 @@ onMounted(() => {
             <span class="material-symbols-outlined text-primary">calendar_today</span>
             <h3 class="font-headline font-bold text-xl">Cronograma</h3>
           </div>
-          <div class="space-y-3">
-            <!-- Próxima sesión -->
-            <div class="bg-primary-fixed p-4 rounded-2xl">
-              <span class="font-label text-xs font-bold text-primary block mb-1">PRÓXIMA SESIÓN</span>
-              <div class="flex justify-between items-center">
-                <span class="font-bold">{{ cronograma[0].fecha }}</span>
-                <span class="text-sm font-medium text-secondary">{{ cronograma[0].dia }}</span>
+          <div class="space-y-2">
+            <button
+              v-for="semana in semanas"
+              :key="semana.id"
+              @click="semanaActiva = semana.id"
+              class="w-full p-4 rounded-2xl flex justify-between items-center transition-all"
+              :class="semanaActiva === semana.id
+                ? 'bg-primary text-white shadow-md'
+                : semanaActual?.id === semana.id
+                  ? 'bg-primary-fixed hover:bg-primary-fixed-dim'
+                  : 'hover:bg-surface-container-low'"
+            >
+              <div class="text-left">
+                <span class="text-xs font-bold uppercase tracking-wider block" :class="semanaActiva === semana.id ? 'text-white/70' : 'text-secondary'">
+                  Semana {{ semana.numero_semana }}
+                </span>
+                <span class="font-semibold">{{ formatFecha(semana.fecha).fecha }}</span>
               </div>
-            </div>
-
-            <!-- Resto de fechas -->
-            <div class="mt-4 space-y-2">
-              <div
-                v-for="(item, idx) in cronograma.slice(1)"
-                :key="idx"
-                class="p-4 hover:bg-surface-container-low rounded-xl transition-colors flex justify-between items-center group"
-              >
-                <span class="font-medium" :class="item.bloqueado ? 'text-secondary/50' : ''">{{ item.fecha }}</span>
-                <span v-if="item.bloqueado" class="material-symbols-outlined text-outline-variant">lock</span>
-                <span v-else class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">chevron_right</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Horario General -->
-          <div class="mt-8 p-5 bg-primary-fixed rounded-2xl">
-            <h4 class="font-bold text-on-primary-fixed mb-4 flex items-center gap-2">
-              <span class="material-symbols-outlined">schedule</span>
-              Horario General
-            </h4>
-            <div class="space-y-3">
-              <div
-                v-for="h in horarios"
-                :key="h.curso"
-                class="flex justify-between items-center p-2 rounded-lg"
-                :class="h.activo
-                  ? 'bg-primary text-white shadow-md scale-105'
-                  : 'bg-white/50'"
-              >
-                <span class="text-xs font-bold uppercase" :class="h.activo ? '' : 'text-on-primary-fixed-variant'">{{ h.curso }}</span>
-                <span class="text-sm font-semibold">{{ h.hora }}</span>
-              </div>
-            </div>
+              <span class="text-sm font-medium" :class="semanaActiva === semana.id ? 'text-white/80' : 'text-secondary'">
+                {{ formatFecha(semana.fecha).dia }}
+              </span>
+            </button>
           </div>
         </section>
       </div>
@@ -159,28 +169,41 @@ onMounted(() => {
         <section class="bg-surface-container-lowest rounded-3xl p-6 shadow-sm">
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
-              <div class="relative flex items-center justify-center w-3 h-3 mr-2">
-                <div class="absolute w-full h-full bg-primary rounded-full animate-ping opacity-75"></div>
-                <div class="relative w-2 h-2 bg-primary rounded-full"></div>
+              <div v-if="isEnVivo" class="relative flex items-center justify-center w-3 h-3 mr-2">
+                <div class="absolute w-full h-full bg-red-500 rounded-full animate-ping opacity-75"></div>
+                <div class="relative w-2 h-2 bg-red-500 rounded-full"></div>
               </div>
+              <span v-else class="material-symbols-outlined text-secondary mr-2">wifi_off</span>
               <h3 class="font-headline font-bold text-xl">Clase en vivo</h3>
             </div>
-            <span class="text-xs font-bold text-primary bg-primary-fixed px-3 py-1 rounded-full uppercase tracking-wider">Transmitiendo ahora</span>
+            <span
+              class="text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider"
+              :class="isEnVivo ? 'text-red-600 bg-red-50' : 'text-secondary bg-surface-container'"
+            >
+              {{ isEnVivo ? 'Transmitiendo ahora' : 'Offline — Sábados 9:00 a 13:00' }}
+            </span>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <a href="#" target="_blank" class="flex items-center justify-center gap-3 py-4 bg-[#1877F2] text-white rounded-2xl font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all">
-              <span class="material-symbols-outlined">video_library</span>
-              Ver en Facebook
-            </a>
-            <a href="#" target="_blank" class="flex items-center justify-center gap-3 py-4 bg-[#FF0000] text-white rounded-2xl font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all">
-              <span class="material-symbols-outlined">smart_display</span>
-              Ver en YouTube
-            </a>
-            <a href="#" target="_blank" class="flex items-center justify-center gap-3 py-4 bg-[#000000] text-white rounded-2xl font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all">
-              <span class="material-symbols-outlined">videocam</span>
-              Ver en TikTok
+
+          <div v-if="videosEnVivo.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <a
+              v-for="video in videosEnVivo"
+              :key="video.id"
+              :href="video.url"
+              target="_blank"
+              class="flex items-center justify-center gap-3 py-4 text-white rounded-2xl font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all"
+              :class="{
+                'bg-[#1877F2]': video.plataforma === 'facebook',
+                'bg-[#FF0000]': video.plataforma === 'youtube',
+                'bg-[#000000]': video.plataforma === 'tiktok',
+              }"
+            >
+              <span class="material-symbols-outlined">
+                {{ video.plataforma === 'facebook' ? 'video_library' : video.plataforma === 'youtube' ? 'smart_display' : 'videocam' }}
+              </span>
+              Ver en {{ video.plataforma === 'facebook' ? 'Facebook' : video.plataforma === 'youtube' ? 'YouTube' : 'TikTok' }}
             </a>
           </div>
+          <p v-else class="text-secondary text-sm">No hay enlaces de transmisión para esta semana.</p>
         </section>
 
         <div class="grid md:grid-cols-2 gap-6">
@@ -190,21 +213,24 @@ onMounted(() => {
               <span class="material-symbols-outlined text-primary">movie</span>
               <h3 class="font-headline font-bold text-xl">Clases grabadas</h3>
             </div>
-            <div class="space-y-4">
-              <div
-                v-for="clase in clasesGrabadas"
-                :key="clase.semana"
-                class="bg-surface-container p-4 rounded-2xl flex items-center justify-between group hover:bg-surface-container-high transition-colors"
+            <div v-if="videosGrabados.length > 0" class="space-y-4">
+              <a
+                v-for="video in videosGrabados"
+                :key="video.id"
+                :href="video.url"
+                target="_blank"
+                class="bg-surface-container p-4 rounded-2xl flex items-center justify-between group hover:bg-surface-container-high transition-colors block"
               >
                 <div>
-                  <h4 class="font-bold">{{ clase.semana }}</h4>
-                  <p class="text-xs text-secondary">{{ clase.titulo }}</p>
+                  <h4 class="font-bold">{{ video.titulo || 'Clase grabada' }}</h4>
+                  <p class="text-xs text-secondary capitalize">{{ video.plataforma }}</p>
                 </div>
-                <button class="text-primary font-bold text-sm bg-white px-4 py-2 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                  Ver grabación
-                </button>
-              </div>
+                <span class="text-primary font-bold text-sm bg-white px-4 py-2 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                  Ver
+                </span>
+              </a>
             </div>
+            <p v-else class="text-secondary text-sm">No hay clases grabadas para esta semana.</p>
           </section>
 
           <!-- Materiales & Quiz -->
@@ -213,28 +239,27 @@ onMounted(() => {
             <section class="bg-surface-container-lowest rounded-3xl p-6 shadow-sm">
               <div class="flex items-center gap-3 mb-6">
                 <span class="material-symbols-outlined text-primary">description</span>
-                <h3 class="font-headline font-bold text-xl">Materiales</h3>
+                <h3 class="font-headline font-bold text-xl">Guías de Aprendizaje</h3>
               </div>
-              <div class="space-y-3">
-                <div class="flex items-center justify-between p-3 bg-surface rounded-xl border border-outline-variant/10">
+              <div v-if="materialesActivos.length > 0" class="space-y-3">
+                <a
+                  v-for="mat in materialesActivos"
+                  :key="mat.id"
+                  :href="mat.archivo_url"
+                  target="_blank"
+                  class="flex items-center justify-between p-3 bg-surface rounded-xl border border-outline-variant/10 hover:bg-surface-container-low transition-colors block"
+                >
                   <div class="flex items-center gap-3">
                     <span class="material-symbols-outlined text-tertiary">picture_as_pdf</span>
-                    <span class="font-medium text-sm">Temario</span>
+                    <div>
+                      <span class="font-medium text-sm block">{{ mat.nombre }}</span>
+                      <span class="text-xs text-secondary capitalize">{{ mat.tipo }}</span>
+                    </div>
                   </div>
-                  <button class="text-secondary hover:text-primary">
-                    <span class="material-symbols-outlined">download</span>
-                  </button>
-                </div>
-                <div class="flex items-center justify-between p-3 bg-surface rounded-xl border border-outline-variant/10">
-                  <div class="flex items-center gap-3">
-                    <span class="material-symbols-outlined text-tertiary">picture_as_pdf</span>
-                    <span class="font-medium text-sm">Guía PDF</span>
-                  </div>
-                  <button class="text-primary font-bold text-xs bg-primary-fixed px-3 py-1 rounded-lg">
-                    Descargar
-                  </button>
-                </div>
+                  <span class="material-symbols-outlined text-primary">download</span>
+                </a>
               </div>
+              <p v-else class="text-secondary text-sm">No hay guías para esta semana.</p>
             </section>
 
             <!-- Quiz -->
@@ -245,7 +270,7 @@ onMounted(() => {
                     <span class="material-symbols-outlined">quiz</span>
                     <h3 class="font-headline font-bold text-xl">Evaluación Semanal</h3>
                   </div>
-                  <p class="text-on-tertiary-container text-sm mb-6">Pon a prueba tus conocimientos sobre la Semana 3.</p>
+                  <p class="text-on-tertiary-container text-sm mb-6">Pon a prueba tus conocimientos.</p>
                   <div class="w-full bg-white text-tertiary font-extrabold py-3 rounded-2xl shadow-lg active:scale-95 duration-200 text-center">
                     Iniciar evaluación
                   </div>

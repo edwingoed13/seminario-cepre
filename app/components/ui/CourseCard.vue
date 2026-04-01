@@ -3,7 +3,6 @@ const props = defineProps<{
   id: string
   nombre: string
   descripcion: string
-  nivel: string
   icono: string
 }>()
 </script>
@@ -16,8 +15,7 @@ const props = defineProps<{
       </div>
       <h3 class="text-2xl font-bold text-on-surface mb-2">{{ nombre }}</h3>
       <p class="text-secondary text-sm mb-6 flex-grow">{{ descripcion }}</p>
-      <div class="flex items-center justify-between mt-auto">
-        <span class="text-xs font-bold px-3 py-1 bg-surface-container text-secondary rounded-full">{{ nivel }}</span>
+      <div class="flex items-center justify-end mt-auto">
         <span class="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 transition-all">arrow_forward</span>
       </div>
       <div class="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full translate-x-8 -translate-y-8"></div>

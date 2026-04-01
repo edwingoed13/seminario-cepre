@@ -1,16 +1,7 @@
 -- ============================================
--- CEPREUNA - Schema de Base de Datos
+-- CEPREUNA Seminarios - Supabase Schema
+-- Ejecutar en: Supabase Dashboard > SQL Editor
 -- ============================================
-
--- Tabla: usuarios
-CREATE TABLE usuarios (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  nombre TEXT NOT NULL,
-  dni TEXT UNIQUE NOT NULL,
-  email TEXT UNIQUE,
-  auth_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
 
 -- Tabla: cursos
 CREATE TABLE cursos (
@@ -66,22 +57,21 @@ CREATE TABLE quizzes (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Tabla: respuestas_usuario
+-- Tabla: respuestas_usuario (para tracking de estudiantes)
 CREATE TABLE respuestas_usuario (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES usuarios(id) ON DELETE CASCADE NOT NULL,
+  estudiante_dni TEXT NOT NULL,
   quiz_id UUID REFERENCES quizzes(id) ON DELETE CASCADE NOT NULL,
   respuesta TEXT NOT NULL,
   es_correcta BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_id, quiz_id)
+  UNIQUE(estudiante_dni, quiz_id)
 );
 
 -- ============================================
 -- Row Level Security
 -- ============================================
 
-ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cursos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE semanas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE materiales ENABLE ROW LEVEL SECURITY;
@@ -89,32 +79,24 @@ ALTER TABLE videos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE respuestas_usuario ENABLE ROW LEVEL SECURITY;
 
--- Políticas: cursos, semanas, materiales, videos, quizzes son lectura pública para autenticados
-CREATE POLICY "Cursos visibles para autenticados" ON cursos
-  FOR SELECT USING (auth.role() = 'authenticated');
+-- Admin (autenticado) puede hacer todo
+CREATE POLICY "Admin full access cursos" ON cursos FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admin full access semanas" ON semanas FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admin full access materiales" ON materiales FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admin full access videos" ON videos FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admin full access quizzes" ON quizzes FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Admin full access respuestas" ON respuestas_usuario FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY "Semanas visibles para autenticados" ON semanas
-  FOR SELECT USING (auth.role() = 'authenticated');
+-- Lectura pública con anon key (para estudiantes via API)
+CREATE POLICY "Public read cursos" ON cursos FOR SELECT USING (true);
+CREATE POLICY "Public read semanas" ON semanas FOR SELECT USING (true);
+CREATE POLICY "Public read materiales" ON materiales FOR SELECT USING (true);
+CREATE POLICY "Public read videos" ON videos FOR SELECT USING (true);
+CREATE POLICY "Public read quizzes" ON quizzes FOR SELECT USING (true);
 
-CREATE POLICY "Materiales visibles para autenticados" ON materiales
-  FOR SELECT USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Videos visibles para autenticados" ON videos
-  FOR SELECT USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Quizzes visibles para autenticados" ON quizzes
-  FOR SELECT USING (auth.role() = 'authenticated');
-
--- Usuarios solo ven su propio perfil
-CREATE POLICY "Usuarios ven su perfil" ON usuarios
-  FOR SELECT USING (auth_id = auth.uid());
-
--- Respuestas: usuario solo ve/crea las suyas
-CREATE POLICY "Usuario ve sus respuestas" ON respuestas_usuario
-  FOR SELECT USING (user_id IN (SELECT id FROM usuarios WHERE auth_id = auth.uid()));
-
-CREATE POLICY "Usuario crea sus respuestas" ON respuestas_usuario
-  FOR INSERT WITH CHECK (user_id IN (SELECT id FROM usuarios WHERE auth_id = auth.uid()));
+-- Estudiantes pueden insertar/leer sus respuestas
+CREATE POLICY "Public insert respuestas" ON respuestas_usuario FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public read respuestas" ON respuestas_usuario FOR SELECT USING (true);
 
 -- ============================================
 -- Datos iniciales
@@ -124,18 +106,3 @@ INSERT INTO cursos (nombre, descripcion, nivel, icono) VALUES
   ('Quechua', 'Aprende la lengua de los Incas, enfocada en gramática andina y conversación.', 'Básico', 'language_pinyin'),
   ('Aimara', 'Estudio profundo de la fonética y estructura social del idioma Aimara contemporáneo.', 'Intermedio', 'translate'),
   ('Inglés', 'Preparación para exámenes internacionales y comunicación global efectiva.', 'Avanzado', 'public');
-
--- Semanas para cada curso (usando las fechas del cronograma)
-DO $$
-DECLARE
-  curso_rec RECORD;
-  fechas DATE[] := ARRAY['2025-04-11', '2025-04-25', '2025-05-09', '2025-05-23', '2025-05-30', '2025-06-06', '2025-06-13', '2025-06-20'];
-  i INT;
-BEGIN
-  FOR curso_rec IN SELECT id, nombre FROM cursos LOOP
-    FOR i IN 1..8 LOOP
-      INSERT INTO semanas (curso_id, numero_semana, fecha, titulo)
-      VALUES (curso_rec.id, i, fechas[i], 'Semana ' || i || ' - ' || curso_rec.nombre);
-    END LOOP;
-  END LOOP;
-END $$;

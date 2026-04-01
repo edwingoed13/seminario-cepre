@@ -1,47 +1,38 @@
+interface UserData {
+  id: number
+  nombres: string
+  paterno: string
+  materno: string
+  dni: string
+  foto: string | null
+}
+
 export const useAuth = () => {
-  const demoUser = useState<any>('demo-user', () => null)
-  const supabase = useSupabaseClient()
-  const supabaseUser = useSupabaseUser()
-
-  const isDemoMode = () => {
-    const config = useRuntimeConfig()
-    return !config.public.supabase?.url || config.public.supabase.url.includes('placeholder')
-  }
-
-  const user = computed(() => isDemoMode() ? demoUser.value : supabaseUser.value)
+  const user = useState<UserData | null>('auth-user', () => null)
   const isAuthenticated = computed(() => !!user.value)
 
-  const login = async (dni: string, password: string) => {
-    if (isDemoMode()) {
-      if (password === 'demo' || password === '123456') {
-        demoUser.value = {
-          id: 'demo-user-id',
-          email: `${dni}@cepreuna.edu.pe`,
-          user_metadata: { nombre: 'Estudiante Demo', dni },
-        }
-        return demoUser.value
-      }
-      throw new Error('En modo demo usa contraseña: demo')
+  const fetchUser = async () => {
+    try {
+      user.value = await $fetch<UserData>('/api/auth/me')
+    } catch {
+      user.value = null
     }
+  }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: `${dni}@cepreuna.edu.pe`,
-      password,
+  const login = async (dni: string, password: string) => {
+    const data = await $fetch<UserData>('/api/auth/login', {
+      method: 'POST',
+      body: { dni, password },
     })
-    if (error) throw error
+    user.value = data
     return data
   }
 
   const logout = async () => {
-    if (isDemoMode()) {
-      demoUser.value = null
-      navigateTo('/login')
-      return
-    }
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    await $fetch('/api/auth/logout', { method: 'POST' })
+    user.value = null
     navigateTo('/login')
   }
 
-  return { login, logout, user, isAuthenticated }
+  return { login, logout, user, isAuthenticated, fetchUser }
 }

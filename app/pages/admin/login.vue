@@ -1,27 +1,26 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
-const { login, user } = useAuth()
+const supabase = useSupabaseClient()
 
-const dni = ref('')
+const email = ref('')
 const password = ref('')
 const showPassword = ref(false)
-const remember = ref(false)
 const loading = ref(false)
 const errorMsg = ref('')
-
-watchEffect(() => {
-  if (user.value) navigateTo('/dashboard')
-})
 
 const handleLogin = async () => {
   errorMsg.value = ''
   loading.value = true
   try {
-    await login(dni.value, password.value)
-    navigateTo('/dashboard')
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.value,
+      password: password.value,
+    })
+    if (error) throw error
+    navigateTo('/admin/dashboard')
   } catch (e: any) {
-    errorMsg.value = e?.message || 'Credenciales incorrectas. Verifica tu DNI y contraseña.'
+    errorMsg.value = e?.message || 'Credenciales incorrectas'
   } finally {
     loading.value = false
   }
@@ -33,20 +32,20 @@ const handleLogin = async () => {
     <div class="max-w-md w-full">
       <!-- Logo -->
       <div class="flex flex-col items-center mb-10">
-        <div class="w-20 h-20 bg-primary-container rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-primary/20">
-          <span class="material-symbols-outlined text-white text-4xl">school</span>
+        <div class="w-20 h-20 bg-slate-800 rounded-xl flex items-center justify-center mb-6 shadow-lg">
+          <span class="material-symbols-outlined text-white text-4xl">admin_panel_settings</span>
         </div>
-        <h1 class="font-headline font-black text-3xl tracking-tighter text-primary mb-2">CEPREUNA</h1>
+        <h1 class="font-headline font-black text-3xl tracking-tighter text-slate-800 mb-2">Panel Admin</h1>
         <p class="font-body text-secondary text-center text-sm tracking-wide">
-          CENTRO PREUNIVERSITARIO DE LA UNIVERSIDAD NACIONAL DEL ALTIPLANO
+          CEPREUNA — Gestión de Seminarios
         </p>
       </div>
 
       <!-- Card -->
       <div class="bg-surface-container-lowest p-8 md:p-10 rounded-[1.5rem] shadow-[0_8px_24px_rgba(26,28,28,0.06)]">
         <div class="mb-8">
-          <span class="font-label font-bold text-[0.75rem] uppercase tracking-widest text-primary block mb-1">Bienvenido al Panel de Idiomas</span>
-          <h2 class="font-headline font-bold text-2xl text-on-surface">Acceso de Estudiante</h2>
+          <span class="font-label font-bold text-[0.75rem] uppercase tracking-widest text-slate-500 block mb-1">Administrador</span>
+          <h2 class="font-headline font-bold text-2xl text-on-surface">Iniciar Sesión</h2>
         </div>
 
         <!-- Error -->
@@ -55,22 +54,22 @@ const handleLogin = async () => {
         </div>
 
         <form class="space-y-6" @submit.prevent="handleLogin">
-          <!-- DNI -->
+          <!-- Email -->
           <div>
-            <label class="block font-label font-semibold text-xs text-secondary mb-2 px-1" for="dni">Usuario / DNI</label>
+            <label class="block font-label font-semibold text-xs text-secondary mb-2 px-1" for="email">Correo electrónico</label>
             <div class="relative group">
               <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-secondary">
-                <span class="material-symbols-outlined text-[20px]">badge</span>
+                <span class="material-symbols-outlined text-[20px]">mail</span>
               </div>
               <input
-                id="dni"
-                v-model="dni"
-                type="text"
-                placeholder="Ingresa tu documento"
+                id="email"
+                v-model="email"
+                type="email"
+                placeholder="admin@cepreuna.edu.pe"
                 required
                 class="w-full bg-surface-container-high border-none rounded-lg py-4 pl-12 pr-4 text-on-surface font-body focus:ring-0 border-b-2 border-transparent transition-all"
               />
-              <div class="absolute bottom-0 left-0 h-[2px] w-0 bg-primary transition-all duration-300 group-focus-within:w-full"></div>
+              <div class="absolute bottom-0 left-0 h-[2px] w-0 bg-slate-800 transition-all duration-300 group-focus-within:w-full"></div>
             </div>
           </div>
 
@@ -91,38 +90,26 @@ const handleLogin = async () => {
               />
               <button
                 type="button"
-                class="absolute inset-y-0 right-0 pr-4 flex items-center text-secondary hover:text-primary transition-colors"
+                class="absolute inset-y-0 right-0 pr-4 flex items-center text-secondary hover:text-slate-800 transition-colors"
                 @click="showPassword = !showPassword"
               >
                 <span class="material-symbols-outlined text-[20px]">
                   {{ showPassword ? 'visibility_off' : 'visibility' }}
                 </span>
               </button>
-              <div class="absolute bottom-0 left-0 h-[2px] w-0 bg-primary transition-all duration-300 group-focus-within:w-full"></div>
+              <div class="absolute bottom-0 left-0 h-[2px] w-0 bg-slate-800 transition-all duration-300 group-focus-within:w-full"></div>
             </div>
-          </div>
-
-          <!-- Remember -->
-          <div class="flex items-center pt-2">
-            <input
-              id="remember"
-              v-model="remember"
-              type="checkbox"
-              class="h-4 w-4 text-primary focus:ring-primary border-outline-variant rounded-sm"
-            />
-            <label class="ml-2 block text-sm text-secondary font-body" for="remember">Recordar sesión</label>
           </div>
 
           <!-- Submit -->
           <button
             type="submit"
             :disabled="loading"
-            class="w-full bg-primary text-on-primary font-headline font-bold text-lg py-4 rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-container active:scale-[0.98] transition-all duration-200 mt-4 disabled:opacity-60"
+            class="w-full bg-slate-800 text-white font-headline font-bold text-lg py-4 rounded-xl shadow-lg hover:bg-slate-700 active:scale-[0.98] transition-all duration-200 mt-4 disabled:opacity-60"
           >
             {{ loading ? 'Ingresando...' : 'Ingresar' }}
           </button>
         </form>
-
       </div>
 
       <!-- Footer -->
@@ -131,11 +118,6 @@ const handleLogin = async () => {
           © 2026 UNIVERSIDAD NACIONAL DEL ALTIPLANO
         </p>
       </footer>
-    </div>
-
-    <!-- Decorative -->
-    <div class="fixed top-0 right-0 p-8 hidden lg:block opacity-20 pointer-events-none">
-      <span class="material-symbols-outlined text-[240px] text-primary" style="font-variation-settings: 'FILL' 1;">school</span>
     </div>
   </main>
 </template>
