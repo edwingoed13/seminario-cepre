@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>Estudiante CEPREUNA | Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-fixed-variant": "#474747",
+                        "surface-tint": "#ba1a20",
+                        "inverse-on-surface": "#f1f1f1",
+                        "on-primary-fixed-variant": "#930010",
+                        "on-primary": "#ffffff",
+                        "surface": "#f9f9f9",
+                        "surface-variant": "#e2e2e2",
+                        "outline-variant": "#e4beba",
+                        "tertiary-container": "#00799c",
+                        "surface-container-low": "#f3f3f3",
+                        "primary-container": "#d32f2f",
+                        "on-primary-fixed": "#410003",
+                        "surface-bright": "#f9f9f9",
+                        "inverse-primary": "#ffb3ac",
+                        "tertiary-fixed-dim": "#7bd1f8",
+                        "primary-fixed": "#ffdad6",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "secondary-fixed": "#e4e2e1",
+                        "primary": "#af101a",
+                        "on-surface": "#1a1c1c",
+                        "background": "#f9f9f9",
+                        "primary-fixed-dim": "#ffb3ac",
+                        "on-tertiary-container": "#e9f7ff",
+                        "on-surface-variant": "#5b403d",
+                        "error": "#ba1a1a",
+                        "surface-container-high": "#e8e8e8",
+                        "surface-container": "#eeeeee",
+                        "outline": "#8f6f6c",
+                        "on-secondary-container": "#656464",
+                        "secondary": "#5f5e5e",
+                        "on-tertiary-fixed": "#001f2a",
+                        "tertiary-fixed": "#bee9ff",
+                        "surface-dim": "#dadada",
+                        "on-error": "#ffffff",
+                        "on-background": "#1a1c1c",
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed-dim": "#c8c6c6",
+                        "secondary-container": "#e4e2e1",
+                        "on-tertiary-fixed-variant": "#004d65",
+                        "tertiary": "#005f7b",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-tertiary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-primary-container": "#fff2f0",
+                        "inverse-surface": "#2f3131",
+                        "surface-container-lowest": "#ffffff"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .live-pulse {
+            position: relative;
+        }
+        .live-pulse::before, .live-pulse::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: #af101a;
+            opacity: 0.4;
+            z-index: -1;
+        }
+        .progress-orbit {
+            background: conic-gradient(#af101a 75%, #eeeeee 0);
+            border-radius: 50%;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#f9f9f9]/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-[0_8px_24px_rgba(26,28,28,0.06)]">
+<nav class="flex justify-between items-center w-full px-8 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#af101a] text-2xl" data-icon="school">school</span>
+<span class="text-xl font-black text-[#af101a] tracking-tighter">CEPREUNA</span>
+</div>
+<div class="hidden md:flex items-center gap-8">
+<a class="text-[#af101a] font-bold font-['Manrope'] tracking-tight" href="#">Inicio</a>
+<a class="text-slate-600 hover:bg-[#f3f3f3] px-4 py-2 rounded-xl transition-colors font-['Manrope']" href="#">Cursos</a>
+<a class="text-slate-600 hover:bg-[#f3f3f3] px-4 py-2 rounded-xl transition-colors font-['Manrope']" href="#">Horario</a>
+</div>
+<div class="flex items-center gap-4">
+<div class="text-right hidden sm:block">
+<p class="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Estudiante</p>
+<p class="text-sm font-bold text-on-surface">Alex Mamani</p>
+</div>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container p-0.5">
+<img alt="Student Profile" class="w-full h-full object-cover rounded-full" data-alt="close-up portrait of a young male student smiling in a campus setting with soft natural morning light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvQ0eBANPhsYgLuaQBi9_VwvkjF4688pzZtyAvIZlLEGS1a67xGbthO00QKR3FNJiADknyGTnp0IqrdGG7jlEwB6JwB-Y5tJCGkAfTudoWR1OFHArQTJBfhL3tY6pzoKu6CTbd3UpJeKvl2_oP9vERPJbc47_0QONY1iXJKrxsHzU9QrdnrRrU82i-hwS1vU0DtPmLcOYC7PPz5ThLCs9ydHPeFL1jBiBPlT58GPoPY3LVScbSWZB005mJcmZEfqvvM7qqhxc9ATI"/>
+</div>
+</div>
+</nav>
+</header>
+<main class="pt-28 pb-32 px-6 max-w-7xl mx-auto">
+<!-- Hero Section: Welcome & Progress -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
+<div class="lg:col-span-8 bg-gradient-to-br from-primary to-primary-container rounded-xl p-8 text-on-primary flex flex-col justify-between relative overflow-hidden shadow-xl">
+<div class="relative z-10">
+<span class="text-xs font-bold uppercase tracking-[0.2em] opacity-80 mb-2 block">Ciclo Académico 2024-II</span>
+<h1 class="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">¡Hola de nuevo, Alex!</h1>
+<p class="text-lg opacity-90 max-w-md font-body leading-relaxed mb-8">Tienes una clase de <span class="font-bold underline decoration-2 underline-offset-4">Quechua Intermedio</span> comenzando en 15 minutos.</p>
+<button class="bg-surface-container-lowest text-primary px-8 py-4 rounded-xl font-bold flex items-center gap-2 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="play_circle">play_circle</span>
+                        Unirme a la Clase en Vivo
+                    </button>
+</div>
+<!-- Decorative element -->
+<div class="absolute -right-16 -bottom-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+</div>
+<div class="lg:col-span-4 bg-surface-container-lowest rounded-xl p-8 shadow-[0_8px_24px_rgba(26,28,28,0.04)] border border-outline-variant/10 flex flex-col items-center justify-center text-center">
+<div class="relative w-32 h-32 mb-6 flex items-center justify-center">
+<div class="progress-orbit absolute inset-0 opacity-10"></div>
+<div class="absolute inset-0 border-[6px] border-surface-container rounded-full"></div>
+<div class="absolute inset-0 border-[6px] border-primary rounded-full border-t-transparent border-l-transparent rotate-45"></div>
+<span class="text-3xl font-black text-on-surface">75%</span>
+</div>
+<p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Tu Progreso General</p>
+<h3 class="text-xl font-bold text-on-surface">Cerca de la Meta</h3>
+<p class="text-sm text-secondary mt-2">Has completado 12 de 16 módulos esta semana.</p>
+</div>
+</section>
+<!-- Courses Section: Bento Grid Navigation -->
+<div class="mb-8">
+<span class="text-xs font-bold text-primary uppercase tracking-[0.2em] mb-2 block">Mis Materias</span>
+<h2 class="text-3xl font-extrabold text-on-surface tracking-tight">Cursos Disponibles</h2>
+</div>
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Course Card: Quechua -->
+<div class="group cursor-pointer">
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_8px_24px_rgba(0,0,0,0.02)] hover:shadow-xl hover:shadow-red-900/5 transition-all duration-300 border border-transparent hover:border-outline-variant/30 relative overflow-hidden h-full flex flex-col">
+<div class="w-14 h-14 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl" data-icon="language_pinyin">language_pinyin</span>
+</div>
+<h3 class="text-2xl font-bold text-on-surface mb-2">Quechua</h3>
+<p class="text-secondary text-sm mb-6 flex-grow">Aprende la lengua de los Incas, enfocada en gramática andina y conversación.</p>
+<div class="flex items-center justify-between mt-auto">
+<span class="text-xs font-bold px-3 py-1 bg-surface-container text-secondary rounded-full">Nivel Básico</span>
+<span class="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 transition-all" data-icon="arrow_forward">arrow_forward</span>
+</div>
+<!-- Ambient layer -->
+<div class="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full translate-x-8 -translate-y-8"></div>
+</div>
+</div>
+<!-- Course Card: Aimara -->
+<div class="group cursor-pointer">
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_8px_24px_rgba(0,0,0,0.02)] hover:shadow-xl hover:shadow-red-900/5 transition-all duration-300 border border-transparent hover:border-outline-variant/30 relative overflow-hidden h-full flex flex-col">
+<div class="w-14 h-14 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl" data-icon="translate">translate</span>
+</div>
+<h3 class="text-2xl font-bold text-on-surface mb-2">Aimara</h3>
+<p class="text-secondary text-sm mb-6 flex-grow">Estudio profundo de la fonética y estructura social del idioma Aimara contemporáneo.</p>
+<div class="flex items-center justify-between mt-auto">
+<span class="text-xs font-bold px-3 py-1 bg-surface-container text-secondary rounded-full">Nivel Intermedio</span>
+<span class="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 transition-all" data-icon="arrow_forward">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Course Card: Inglés -->
+<div class="group cursor-pointer">
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_8px_24px_rgba(0,0,0,0.02)] hover:shadow-xl hover:shadow-red-900/5 transition-all duration-300 border border-transparent hover:border-outline-variant/30 relative overflow-hidden h-full flex flex-col">
+<div class="w-14 h-14 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl" data-icon="public">public</span>
+</div>
+<h3 class="text-2xl font-bold text-on-surface mb-2">Inglés</h3>
+<p class="text-secondary text-sm mb-6 flex-grow">Preparación para exámenes internacionales y comunicación global efectiva.</p>
+<div class="flex items-center justify-between mt-auto">
+<span class="text-xs font-bold px-3 py-1 bg-surface-container text-secondary rounded-full">Nivel Avanzado</span>
+<span class="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 transition-all" data-icon="arrow_forward">arrow_forward</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Secondary Info: Schedule/Alerts -->
+<section class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="bg-surface-container-low rounded-xl p-6">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-bold text-lg">Próximas Evaluaciones</h3>
+<span class="text-primary font-bold text-sm cursor-pointer hover:underline">Ver Todo</span>
+</div>
+<div class="space-y-4">
+<div class="flex items-center gap-4 bg-surface-container-lowest p-4 rounded-lg">
+<div class="flex flex-col items-center justify-center bg-red-50 px-3 py-2 rounded">
+<span class="text-[10px] uppercase font-bold text-primary">Oct</span>
+<span class="text-xl font-black text-on-surface leading-none">24</span>
+</div>
+<div class="flex-grow">
+<h4 class="font-bold text-sm">Examen Parcial de Aimara</h4>
+<p class="text-xs text-secondary">09:00 AM - Pabellón A</p>
+</div>
+<span class="material-symbols-outlined text-slate-300" data-icon="event">event</span>
+</div>
+<div class="flex items-center gap-4 bg-surface-container-lowest p-4 rounded-lg">
+<div class="flex flex-col items-center justify-center bg-slate-50 px-3 py-2 rounded">
+<span class="text-[10px] uppercase font-bold text-slate-400">Nov</span>
+<span class="text-xl font-black text-on-surface leading-none">02</span>
+</div>
+<div class="flex-grow">
+<h4 class="font-bold text-sm">Presentación de Inglés</h4>
+<p class="text-xs text-secondary">11:30 AM - Online</p>
+</div>
+<span class="material-symbols-outlined text-slate-300" data-icon="event">event</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-high rounded-xl p-6 relative overflow-hidden">
+<h3 class="font-bold text-lg mb-4">Avisos del Centro</h3>
+<div class="bg-surface-container-lowest/60 backdrop-blur-sm p-5 rounded-lg border border-white/40">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary" data-icon="campaign">campaign</span>
+<div>
+<p class="font-bold text-sm mb-1">Mantenimiento de Plataforma</p>
+<p class="text-xs text-secondary leading-relaxed">Este domingo el aula virtual estará en mantenimiento desde las 00:00 hasta las 04:00 horas.</p>
+</div>
+</div>
+</div>
+<!-- Visual highlight -->
+<div class="absolute -bottom-8 -right-8 opacity-5">
+<span class="material-symbols-outlined text-[120px]" data-icon="school">school</span>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-3 pb-safe bg-[#f9f9f9]/85 dark:bg-slate-950/85 backdrop-blur-lg shadow-[0_-4px_20px_rgba(0,0,0,0.05)] rounded-t-[1.5rem] z-50 md:hidden">
+<a class="flex flex-col items-center justify-center bg-[#af101a] text-white rounded-[1.5rem] px-6 py-2 shadow-lg shadow-red-900/20 active:scale-90 transition-transform duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="home" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-['Inter'] font-semibold text-[10px] uppercase tracking-widest mt-1">Inicio</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 hover:bg-[#f3f3f3] rounded-[1.5rem] px-4 py-2 active:scale-90 transition-transform duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+<span class="font-['Inter'] font-semibold text-[10px] uppercase tracking-widest mt-1">Cursos</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 hover:bg-[#f3f3f3] rounded-[1.5rem] px-4 py-2 active:scale-90 transition-transform duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-['Inter'] font-semibold text-[10px] uppercase tracking-widest mt-1">Perfil</span>
+</a>
+</nav>
+</body></html>
