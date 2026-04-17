@@ -16,24 +16,24 @@ export const useQuiz = () => {
     return data
   }
 
-  const submitAnswer = async (userId: string, quizId: string, respuesta: string, esCorrecta: boolean) => {
+  const submitAnswer = async (dni: string, quizId: string, respuesta: string, esCorrecta: boolean) => {
     const { data, error } = await supabase
       .from('respuestas_usuario')
       .upsert({
-        user_id: userId,
+        estudiante_dni: dni,
         quiz_id: quizId,
         respuesta,
         es_correcta: esCorrecta,
-      })
+      }, { onConflict: 'estudiante_dni,quiz_id' })
     if (error) throw error
     return data
   }
 
-  const fetchUserAnswers = async (userId: string, cursoId: string) => {
+  const fetchUserAnswers = async (dni: string, cursoId: string) => {
     const { data, error } = await supabase
       .from('respuestas_usuario')
       .select('*, quizzes!inner(curso_id)')
-      .eq('user_id', userId)
+      .eq('estudiante_dni', dni)
       .eq('quizzes.curso_id', cursoId)
     if (error) throw error
     return data

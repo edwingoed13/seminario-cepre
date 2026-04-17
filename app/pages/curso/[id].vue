@@ -23,39 +23,26 @@ const getPeruTime = () => {
   return new Date(utc + -5 * 3600000)
 }
 
+// Detectar si está en vivo basándose en hora_inicio/hora_fin de la SEMANA
 const isEnVivo = computed(() => {
-  const enVivoVideos = videosEnVivo.value
-  if (enVivoVideos.length === 0) return false
+  const semana = semanas.value.find(s => s.id === semanaActiva.value)
+  if (!semana || !semana.hora_inicio || !semana.hora_fin) return false
 
   const peruTime = getPeruTime()
-  const semana = semanas.value.find(s => s.id === semanaActiva.value)
-  if (!semana) return false
-
   const hoy = peruTime.toISOString().slice(0, 10)
   if (semana.fecha !== hoy) return false
 
   const horaActual = peruTime.getHours() * 60 + peruTime.getMinutes()
-
-  return enVivoVideos.some((v: any) => {
-    if (!v.hora_inicio || !v.hora_fin) return false
-    const [hi, mi] = v.hora_inicio.split(':').map(Number)
-    const [hf, mf] = v.hora_fin.split(':').map(Number)
-    return horaActual >= hi * 60 + mi && horaActual < hf * 60 + mf
-  })
+  const [hi, mi] = semana.hora_inicio.split(':').map(Number)
+  const [hf, mf] = semana.hora_fin.split(':').map(Number)
+  return horaActual >= hi * 60 + mi && horaActual < hf * 60 + mf
 })
 
-const horarioEnVivo = computed(() => {
-  const enVivoVideos = videosEnVivo.value
-  if (enVivoVideos.length === 0) return null
-
-  let minInicio = '23:59'
-  let maxFin = '00:00'
-  for (const v of enVivoVideos) {
-    if (v.hora_inicio && v.hora_inicio < minInicio) minInicio = v.hora_inicio
-    if (v.hora_fin && v.hora_fin > maxFin) maxFin = v.hora_fin
-  }
-  if (minInicio === '23:59') return null
-  return `${minInicio.slice(0, 5)} a ${maxFin.slice(0, 5)}`
+// Horario de la clase de este curso (desde semana activa)
+const horarioClase = computed(() => {
+  const semana = semanas.value.find(s => s.id === semanaActiva.value)
+  if (!semana?.hora_inicio || !semana?.hora_fin) return null
+  return `${semana.hora_inicio.slice(0, 5)} — ${semana.hora_fin.slice(0, 5)}`
 })
 
 const formatFecha = (fechaStr: string) => {
@@ -207,6 +194,9 @@ const colorForPlataforma = (p: string) => {
                   Semana {{ semana.numero_semana }}
                 </span>
                 <span class="font-semibold text-sm md:text-base">{{ formatFecha(semana.fecha).fecha }}</span>
+                <span v-if="semana.hora_inicio" class="block text-[10px] md:text-xs mt-0.5" :class="semanaActiva === semana.id ? 'text-white/60' : 'text-on-surface-variant'">
+                  {{ semana.hora_inicio.slice(0, 5) }} — {{ semana.hora_fin?.slice(0, 5) }}
+                </span>
               </div>
               <span class="text-xs md:text-sm font-medium" :class="semanaActiva === semana.id ? 'text-white/80' : 'text-on-surface-variant'">
                 {{ formatFecha(semana.fecha).dia }}
@@ -233,10 +223,15 @@ const colorForPlataforma = (p: string) => {
               :color="isEnVivo ? 'error' : 'neutral'"
               :variant="isEnVivo ? 'soft' : 'subtle'"
               size="md"
-              class="uppercase tracking-wider font-bold"
+              class="font-bold"
             >
-              {{ isEnVivo ? 'Transmitiendo ahora' : horarioEnVivo ? `Offline — ${horarioEnVivo}` : 'Sin programar' }}
+              {{ isEnVivo ? 'Transmitiendo ahora' : horarioClase ? `Offline — ${horarioClase}` : 'Sin programar' }}
             </UBadge>
+          </div>
+
+          <div v-if="horarioClase" class="mb-4 p-3 bg-primary/5 rounded-xl flex items-center gap-2">
+            <UIcon name="i-lucide-clock" class="text-primary" />
+            <span class="text-sm font-semibold text-on-surface">Tu clase: <span class="text-primary">{{ horarioClase }}</span></span>
           </div>
 
           <div v-if="videosEnVivo.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -245,16 +240,11 @@ const colorForPlataforma = (p: string) => {
               :key="video.id"
               :href="video.url"
               target="_blank"
-              class="flex flex-col items-center justify-center gap-1 py-3 md:py-4 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all"
+              class="flex items-center justify-center gap-2 py-3 md:py-4 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all text-sm md:text-base"
               :class="colorForPlataforma(video.plataforma)"
             >
-              <div class="flex items-center gap-2 text-sm md:text-base">
-                <UIcon :name="iconForPlataforma(video.plataforma)" />
-                {{ video.plataforma === 'facebook' ? 'Facebook' : video.plataforma === 'youtube' ? 'YouTube' : 'TikTok' }}
-              </div>
-              <span v-if="video.hora_inicio" class="text-[10px] md:text-xs font-normal opacity-80">
-                {{ video.hora_inicio.slice(0, 5) }} — {{ video.hora_fin?.slice(0, 5) }}
-              </span>
+              <UIcon :name="iconForPlataforma(video.plataforma)" />
+              {{ video.plataforma === 'facebook' ? 'Facebook' : video.plataforma === 'youtube' ? 'YouTube' : 'TikTok' }}
             </a>
           </div>
           <p v-else class="text-on-surface-variant text-sm">No hay enlaces de transmisión para esta semana.</p>

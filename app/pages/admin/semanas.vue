@@ -10,7 +10,7 @@ const selectedCursoId = ref('')
 const loading = ref(true)
 const editingId = ref<string | null>(null)
 const saving = ref(false)
-const form = reactive({ titulo: '', descripcion: '', fecha: '' })
+const form = reactive({ titulo: '', descripcion: '', fecha: '', hora_inicio: '', hora_fin: '' })
 
 const fetchCursos = async () => {
   const { data } = await supabase.from('cursos').select('*').order('nombre')
@@ -31,6 +31,8 @@ const editSemana = (semana: any) => {
     titulo: semana.titulo || '',
     descripcion: semana.descripcion || '',
     fecha: semana.fecha,
+    hora_inicio: semana.hora_inicio || '',
+    hora_fin: semana.hora_fin || '',
   })
   editingId.value = semana.id
 }
@@ -39,7 +41,12 @@ const saveSemana = async () => {
   if (!editingId.value) return
   saving.value = true
   try {
-    await supabase.from('semanas').update({ ...form }).eq('id', editingId.value)
+    const payload = {
+      ...form,
+      hora_inicio: form.hora_inicio || null,
+      hora_fin: form.hora_fin || null,
+    }
+    await supabase.from('semanas').update(payload).eq('id', editingId.value)
     toast.add({ title: 'Semana actualizada', icon: 'i-lucide-check-circle', color: 'success' })
     cancelEdit()
     await fetchSemanas()
@@ -52,7 +59,7 @@ const saveSemana = async () => {
 
 const cancelEdit = () => {
   editingId.value = null
-  Object.assign(form, { titulo: '', descripcion: '', fecha: '' })
+  Object.assign(form, { titulo: '', descripcion: '', fecha: '', hora_inicio: '', hora_fin: '' })
 }
 
 const cursoOptions = computed(() =>
@@ -94,7 +101,13 @@ onMounted(fetchCursos)
               <UInput v-model="form.titulo" :placeholder="`Semana ${semana.numero_semana}`" class="w-full" :ui="{ root: 'w-full' }" />
             </UFormField>
             <UFormField label="Fecha" name="fecha">
-              <UInput v-model="form.fecha" type="date" class="w-full" :ui="{ root: 'w-full' }" />
+              <UInput v-model="form.fecha" type="date" class="w-full" />
+            </UFormField>
+            <UFormField label="Hora inicio" name="hora_inicio">
+              <UInput v-model="form.hora_inicio" type="time" placeholder="09:00" class="w-full" />
+            </UFormField>
+            <UFormField label="Hora fin" name="hora_fin">
+              <UInput v-model="form.hora_fin" type="time" placeholder="10:20" class="w-full" />
             </UFormField>
             <UFormField label="Temario / Descripción" name="descripcion" class="md:col-span-2">
               <UTextarea v-model="form.descripcion" :rows="3" placeholder="Contenido temático de esta semana..." class="w-full" :ui="{ root: 'w-full' }" />
@@ -111,6 +124,10 @@ onMounted(fetchCursos)
             <div class="flex items-center gap-2 mb-2 flex-wrap">
               <UBadge color="neutral" variant="subtle">Semana {{ semana.numero_semana }}</UBadge>
               <span class="text-sm text-slate-400">{{ semana.fecha }}</span>
+              <UBadge v-if="semana.hora_inicio" color="primary" variant="soft" size="sm">
+                <UIcon name="i-lucide-clock" class="mr-1" />
+                {{ semana.hora_inicio?.slice(0, 5) }} — {{ semana.hora_fin?.slice(0, 5) }}
+              </UBadge>
             </div>
             <h4 class="font-semibold text-slate-800 mb-1">{{ semana.titulo || `Semana ${semana.numero_semana}` }}</h4>
             <p class="text-sm text-slate-500">{{ semana.descripcion || 'Sin temario asignado' }}</p>

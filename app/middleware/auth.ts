@@ -1,7 +1,8 @@
 export default defineNuxtRouteMiddleware(async (to) => {
   const { isAuthenticated, fetchUser } = useAuth()
 
-  if (!isAuthenticated.value) {
+  // Siempre verificar sesión en SSR para evitar flash
+  if (import.meta.server || !isAuthenticated.value) {
     await fetchUser()
   }
 

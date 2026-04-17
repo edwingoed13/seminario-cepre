@@ -33,6 +33,7 @@ export default defineNuxtConfig({
     },
   },
 
+
   googleFonts: {
     families: {
       Manrope: [400, 600, 700, 800],

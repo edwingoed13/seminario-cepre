@@ -3,8 +3,14 @@ definePageMeta({ layout: 'default', middleware: 'auth' })
 
 const route = useRoute()
 const cursoId = route.params.cursoId as string
-const { fetchQuizzes } = useQuiz()
+const supabase = useSupabaseClient()
+const { fetchQuizzes, submitAnswer } = useQuiz()
+const { user } = useAuth()
 
+const TOTAL_MOSTRAR = 10
+const TIMER_SECONDS = 10 * 60
+
+// Estados
 const preguntas = ref<any[]>([])
 const currentIndex = ref(0)
 const selectedAnswer = ref<string | null>(null)
@@ -13,59 +19,102 @@ const resultCorrect = ref<boolean | null>(null)
 const score = ref(0)
 const finished = ref(false)
 const loading = ref(true)
-const timerSeconds = ref(45 * 60)
+const savingSession = ref(false)
+const timerSeconds = ref(TIMER_SECONDS)
+const timerStarted = ref(false)
+const ranking = ref<any[]>([])
+const yaResolvio = ref(false)
+const sesionPrevia = ref<any>(null)
 
-const fallbackPreguntas = [
-  {
-    id: '1',
-    pregunta: '¿Cómo se dice \'hola\' en quechua?',
-    categoria: 'Pregunta de vocabulario',
-    opciones: ['Allinllachu', 'Napaykullayki', 'Rimaykullayki', 'Sulpayki'],
-    respuesta_correcta: 'Napaykullayki',
-  },
-  {
-    id: '2',
-    pregunta: '¿Qué significa \'ñuqa\'?',
-    categoria: 'Pronombres',
-    opciones: ['Tú', 'Él/Ella', 'Yo', 'Nosotros'],
-    respuesta_correcta: 'Yo',
-  },
-  {
-    id: '3',
-    pregunta: '¿Cómo se dice \'gracias\' en quechua?',
-    categoria: 'Expresiones básicas',
-    opciones: ['Allinllachu', 'Sulpayki', 'Rimaykullayki', 'Tupananchiskama'],
-    respuesta_correcta: 'Sulpayki',
-  },
-  {
-    id: '4',
-    pregunta: '¿Qué sufijo indica posesión en primera persona?',
-    categoria: 'Gramática',
-    opciones: ['-yki', '-n', '-y', '-nchis'],
-    respuesta_correcta: '-y',
-  },
-  {
-    id: '5',
-    pregunta: '¿Cómo se dice \'agua\' en quechua?',
-    categoria: 'Vocabulario',
-    opciones: ['Unu', 'Rumi', 'Sara', 'Allpa'],
-    respuesta_correcta: 'Unu',
-  },
-]
+// Curso info
+const cursoNombre = ref('')
 
-onMounted(() => {
-  preguntas.value = fallbackPreguntas
-  loading.value = false
+const fetchCursoNombre = async () => {
+  const { data } = await supabase.from('cursos').select('nombre').eq('id', cursoId).single()
+  cursoNombre.value = data?.nombre || 'Quiz'
+}
 
-  fetchQuizzes(cursoId)
-    .then(data => { if (data?.length) preguntas.value = data })
-    .catch(() => {})
+// Mezclar array (Fisher-Yates)
+const shuffle = <T>(arr: T[]): T[] => {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+onMounted(async () => {
+  await fetchCursoNombre()
+
+  // Verificar si ya resolvió esta semana
+  if (user.value?.dni) {
+    const inicioSemana = new Date()
+    inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay())
+    inicioSemana.setHours(0, 0, 0, 0)
+
+    const { data: sesiones } = await supabase
+      .from('quiz_sesiones')
+      .select('*')
+      .eq('estudiante_dni', user.value.dni)
+      .eq('curso_id', cursoId)
+      .gte('created_at', inicioSemana.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (sesiones?.length) {
+      yaResolvio.value = true
+      sesionPrevia.value = sesiones[0]
+
+      // Cargar ranking
+      const { data: rankingData } = await supabase
+        .from('quiz_sesiones')
+        .select('*')
+        .eq('curso_id', cursoId)
+        .gte('created_at', inicioSemana.toISOString())
+        .order('puntaje', { ascending: false })
+        .order('tiempo_segundos', { ascending: true })
+        .limit(10)
+      ranking.value = rankingData || []
+
+      loading.value = false
+      return
+    }
+  }
+
+  try {
+    const all = await fetchQuizzes(cursoId)
+    if (all?.length) {
+      const shuffled = shuffle(all)
+      preguntas.value = shuffled.slice(0, TOTAL_MOSTRAR)
+    }
+  } catch {
+    // fallback vacío
+  } finally {
+    loading.value = false
+  }
 })
+
+// Timer
+let timerInterval: ReturnType<typeof setInterval> | null = null
+
+const startTimer = () => {
+  if (timerStarted.value) return
+  timerStarted.value = true
+  timerInterval = setInterval(() => {
+    if (timerSeconds.value > 0) {
+      timerSeconds.value--
+    } else {
+      finishQuiz()
+    }
+  }, 1000)
+}
+
+onUnmounted(() => { if (timerInterval) clearInterval(timerInterval) })
 
 const currentQuestion = computed(() => preguntas.value[currentIndex.value])
 const totalQuestions = computed(() => preguntas.value.length)
 const progressPercent = computed(() => Math.round(((currentIndex.value + 1) / totalQuestions.value) * 100))
-const strokeOffset = computed(() => 100 - progressPercent.value)
 
 const timerDisplay = computed(() => {
   const m = Math.floor(timerSeconds.value / 60)
@@ -73,20 +122,33 @@ const timerDisplay = computed(() => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 })
 
-let timerInterval: ReturnType<typeof setInterval>
-onMounted(() => {
-  timerInterval = setInterval(() => {
-    if (timerSeconds.value > 0) timerSeconds.value--
-  }, 1000)
-})
-onUnmounted(() => clearInterval(timerInterval))
+const tiempoUsado = computed(() => TIMER_SECONDS - timerSeconds.value)
 
-const handleSubmit = () => {
+const timerColor = computed(() => {
+  if (timerSeconds.value < 60) return 'error'
+  if (timerSeconds.value < 180) return 'warning'
+  return 'primary'
+})
+
+// Acciones
+const handleSubmit = async () => {
   if (!selectedAnswer.value || submitted.value) return
+
+  // Iniciar timer en la primera respuesta
+  startTimer()
+
   const isCorrect = selectedAnswer.value === currentQuestion.value.respuesta_correcta
   resultCorrect.value = isCorrect
   submitted.value = true
   if (isCorrect) score.value++
+
+  if (user.value?.dni) {
+    try {
+      await submitAnswer(user.value.dni, currentQuestion.value.id, selectedAnswer.value, isCorrect)
+    } catch (e) {
+      console.error('Error guardando respuesta:', e)
+    }
+  }
 }
 
 const nextQuestion = () => {
@@ -96,13 +158,60 @@ const nextQuestion = () => {
     submitted.value = false
     resultCorrect.value = null
   } else {
-    finished.value = true
+    finishQuiz()
   }
 }
 
-const skipQuestion = () => nextQuestion()
+const finishQuiz = async () => {
+  if (timerInterval) clearInterval(timerInterval)
+  finished.value = true
+  savingSession.value = true
+
+  // Guardar sesión
+  if (user.value?.dni) {
+    try {
+      await supabase.from('quiz_sesiones').insert({
+        estudiante_dni: user.value.dni,
+        estudiante_nombre: `${user.value.nombres} ${user.value.paterno}`,
+        curso_id: cursoId,
+        puntaje: score.value,
+        total_preguntas: totalQuestions.value,
+        tiempo_segundos: tiempoUsado.value,
+      })
+    } catch (e) {
+      console.error('Error guardando sesión:', e)
+    }
+  }
+
+  // Cargar ranking
+  try {
+    const { data } = await supabase
+      .from('quiz_sesiones')
+      .select('*')
+      .eq('curso_id', cursoId)
+      .order('puntaje', { ascending: false })
+      .order('tiempo_segundos', { ascending: true })
+      .limit(10)
+    ranking.value = data || []
+  } catch {
+    ranking.value = []
+  }
+
+  savingSession.value = false
+}
+
+const skipQuestion = () => {
+  startTimer()
+  nextQuestion()
+}
 
 const goBack = () => navigateTo(`/curso/${cursoId}`)
+
+const formatTime = (seconds: number) => {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}m ${s.toString().padStart(2, '0')}s`
+}
 
 const optionClass = (opcion: string) => {
   if (submitted.value) {
@@ -115,163 +224,209 @@ const optionClass = (opcion: string) => {
 }
 
 const radioClass = (opcion: string) => {
-  const isSelected = selectedAnswer.value === opcion
   if (submitted.value) {
     if (opcion === currentQuestion.value.respuesta_correcta) return 'border-success bg-success'
     if (opcion === selectedAnswer.value) return 'border-error bg-error'
     return 'border-outline-variant'
   }
-  return isSelected ? 'border-primary bg-primary' : 'border-outline-variant'
+  return selectedAnswer.value === opcion ? 'border-primary bg-primary' : 'border-outline-variant'
 }
 </script>
 
 <template>
   <div class="bg-surface text-on-surface min-h-screen">
-    <!-- TopAppBar -->
+    <!-- Header -->
     <header class="fixed top-0 w-full z-50 glassmorphic">
       <div class="flex justify-between items-center w-full px-4 md:px-8 py-3 md:py-4">
         <div class="flex items-center gap-3 md:gap-4">
-          <UButton
-            icon="i-lucide-arrow-left"
-            color="primary"
-            variant="ghost"
-            size="md"
-            aria-label="Volver"
-            @click="goBack"
-          />
+          <UButton icon="i-lucide-arrow-left" color="primary" variant="ghost" size="md" @click="goBack" />
           <div class="flex flex-col">
-            <span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Evaluación en curso</span>
-            <h1 class="font-headline font-bold text-base md:text-lg tracking-tight text-primary">Semana 1</h1>
+            <span class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Evaluación</span>
+            <h1 class="font-headline font-bold text-base md:text-lg tracking-tight text-primary">{{ cursoNombre }}</h1>
           </div>
         </div>
-        <UBadge color="primary" variant="soft" size="lg" class="gap-2">
+        <UBadge :color="timerColor" variant="soft" size="lg" class="gap-2">
           <UIcon name="i-lucide-timer" />
-          <span class="font-label text-sm font-bold">{{ timerDisplay }}</span>
+          <span class="font-label text-sm font-bold font-mono">{{ timerDisplay }}</span>
         </UBadge>
       </div>
     </header>
 
-    <main class="pt-20 md:pt-24 pb-12 px-4 md:px-6">
-      <div v-if="loading" class="flex items-center justify-center h-64">
-        <UIcon name="i-lucide-loader-circle" class="animate-spin text-primary text-4xl" />
+    <main class="pt-16 md:pt-20 pb-8 px-3 md:px-6">
+      <!-- Loading -->
+      <div v-if="loading" class="flex items-center justify-center h-48">
+        <UIcon name="i-lucide-loader-circle" class="animate-spin text-primary text-3xl" />
       </div>
 
-      <!-- Finished State -->
-      <div v-else-if="finished" class="max-w-3xl mx-auto">
-        <UCard :ui="{ body: 'p-8 md:p-12 text-center' }">
+      <!-- Ya resolvió esta semana -->
+      <div v-else-if="yaResolvio && sesionPrevia" class="max-w-2xl mx-auto space-y-4">
+        <UCard :ui="{ body: 'p-5 md:p-8 text-center' }">
+          <UIcon name="i-lucide-lock" class="text-on-surface-variant text-4xl mb-3" />
+          <h2 class="font-headline text-xl md:text-2xl font-extrabold mb-1">Ya completaste esta evaluación</h2>
+          <p class="text-on-surface-variant text-sm mb-4">Solo puedes resolver el quiz una vez por semana.</p>
           <div
-            class="w-20 h-20 md:w-24 md:h-24 mx-auto mb-5 md:mb-6 rounded-full flex items-center justify-center"
+            class="text-4xl font-black font-headline mb-1"
+            :class="sesionPrevia.puntaje >= sesionPrevia.total_preguntas / 2 ? 'text-success' : 'text-error'"
+          >
+            {{ sesionPrevia.puntaje }}/{{ sesionPrevia.total_preguntas }}
+          </div>
+          <p class="text-xs text-on-surface-variant mb-4">
+            Tiempo: <span class="font-bold">{{ formatTime(sesionPrevia.tiempo_segundos || 0) }}</span>
+          </p>
+          <UButton color="primary" size="lg" @click="goBack">Volver al Curso</UButton>
+        </UCard>
+
+        <UCard v-if="ranking.length > 0" :ui="{ body: 'p-4 md:p-5' }">
+          <div class="flex items-center gap-2 mb-3">
+            <UIcon name="i-lucide-medal" class="text-primary" />
+            <h3 class="font-headline font-bold text-base">Ranking — Top 10</h3>
+          </div>
+          <div class="space-y-1.5">
+            <div
+              v-for="(r, i) in ranking"
+              :key="r.id"
+              class="flex items-center gap-2.5 p-2 rounded-lg text-sm"
+              :class="r.estudiante_dni === user?.dni ? 'bg-primary/10 ring-1 ring-primary/20' : 'bg-surface-container-low'"
+            >
+              <div
+                class="w-6 h-6 rounded-full flex items-center justify-center font-black text-[10px] shrink-0"
+                :class="{
+                  'bg-yellow-400 text-yellow-900': i === 0,
+                  'bg-gray-300 text-gray-700': i === 1,
+                  'bg-amber-600 text-white': i === 2,
+                  'bg-surface-container-high text-on-surface-variant': i > 2,
+                }"
+              >
+                {{ i + 1 }}
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-semibold text-xs truncate">
+                  {{ r.estudiante_nombre || r.estudiante_dni }}
+                  <span v-if="r.estudiante_dni === user?.dni" class="text-primary">(Tú)</span>
+                </p>
+              </div>
+              <span class="text-[10px] text-on-surface-variant">{{ formatTime(r.tiempo_segundos || 0) }}</span>
+              <span class="font-black text-sm" :class="r.puntaje >= r.total_preguntas / 2 ? 'text-success' : 'text-error'">
+                {{ r.puntaje }}<span class="text-[10px] text-on-surface-variant font-normal">/{{ r.total_preguntas }}</span>
+              </span>
+            </div>
+          </div>
+        </UCard>
+      </div>
+
+      <!-- No hay preguntas -->
+      <div v-else-if="preguntas.length === 0" class="max-w-2xl mx-auto">
+        <UCard :ui="{ body: 'p-6 text-center' }">
+          <UIcon name="i-lucide-clipboard-x" class="text-on-surface-variant text-4xl mb-3" />
+          <h2 class="font-headline text-xl font-bold mb-1">Sin preguntas disponibles</h2>
+          <p class="text-on-surface-variant text-sm mb-4">Aún no se han cargado preguntas para este curso.</p>
+          <UButton color="primary" size="md" @click="goBack">Volver al curso</UButton>
+        </UCard>
+      </div>
+
+      <!-- Resultado final -->
+      <div v-else-if="finished" class="max-w-2xl mx-auto space-y-4">
+        <UCard :ui="{ body: 'p-5 md:p-8 text-center' }">
+          <div
+            class="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center"
             :class="score >= totalQuestions / 2 ? 'bg-success/15 text-success' : 'bg-error/15 text-error'"
           >
-            <UIcon
-              :name="score >= totalQuestions / 2 ? 'i-lucide-trophy' : 'i-lucide-frown'"
-              class="text-4xl md:text-5xl"
-            />
+            <UIcon :name="score >= totalQuestions / 2 ? 'i-lucide-trophy' : 'i-lucide-frown'" class="text-3xl" />
           </div>
-          <h2 class="font-headline text-2xl md:text-3xl font-extrabold mb-2">¡Evaluación Completada!</h2>
-          <p class="text-on-surface-variant text-base md:text-lg mb-6 md:mb-8">
-            Obtuviste <span class="font-bold text-primary">{{ score }}</span> de <span class="font-bold">{{ totalQuestions }}</span> respuestas correctas
+          <h2 class="font-headline text-xl md:text-2xl font-extrabold mb-1">¡Evaluación Completada!</h2>
+          <p class="text-on-surface-variant text-sm mb-3">
+            Obtuviste <span class="font-bold text-primary">{{ score }}</span> de <span class="font-bold">{{ totalQuestions }}</span> correctas
           </p>
           <div
-            class="text-5xl md:text-6xl font-black font-headline mb-6 md:mb-8"
+            class="text-4xl font-black font-headline mb-1"
             :class="score >= totalQuestions / 2 ? 'text-success' : 'text-error'"
           >
-            {{ Math.round((score / totalQuestions) * 100) }}%
+            {{ score }}/{{ totalQuestions }}
           </div>
-          <UButton color="primary" size="xl" @click="goBack">
-            Volver al Curso
-          </UButton>
+          <p class="text-xs text-on-surface-variant mb-4">
+            Tiempo: <span class="font-bold">{{ formatTime(tiempoUsado) }}</span>
+          </p>
+          <UButton color="primary" size="lg" @click="goBack">Volver al Curso</UButton>
+        </UCard>
+
+        <!-- Ranking -->
+        <UCard v-if="ranking.length > 0" :ui="{ body: 'p-4 md:p-5' }">
+          <div class="flex items-center gap-2 mb-3">
+            <UIcon name="i-lucide-medal" class="text-primary" />
+            <h3 class="font-headline font-bold text-base">Ranking — Top 10</h3>
+          </div>
+          <div class="space-y-1.5">
+            <div
+              v-for="(r, i) in ranking"
+              :key="r.id"
+              class="flex items-center gap-2.5 p-2 rounded-lg text-sm"
+              :class="r.estudiante_dni === user?.dni ? 'bg-primary/10 ring-1 ring-primary/20' : 'bg-surface-container-low'"
+            >
+              <div
+                class="w-6 h-6 rounded-full flex items-center justify-center font-black text-[10px] shrink-0"
+                :class="{
+                  'bg-yellow-400 text-yellow-900': i === 0,
+                  'bg-gray-300 text-gray-700': i === 1,
+                  'bg-amber-600 text-white': i === 2,
+                  'bg-surface-container-high text-on-surface-variant': i > 2,
+                }"
+              >
+                {{ i + 1 }}
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-semibold text-xs truncate">
+                  {{ r.estudiante_nombre || r.estudiante_dni }}
+                  <span v-if="r.estudiante_dni === user?.dni" class="text-primary">(Tú)</span>
+                </p>
+              </div>
+              <span class="text-[10px] text-on-surface-variant">{{ formatTime(r.tiempo_segundos || 0) }}</span>
+              <span class="font-black text-sm" :class="r.puntaje >= r.total_preguntas / 2 ? 'text-success' : 'text-error'">
+                {{ r.puntaje }}<span class="text-[10px] text-on-surface-variant font-normal">/{{ r.total_preguntas }}</span>
+              </span>
+            </div>
+          </div>
         </UCard>
       </div>
 
-      <!-- Quiz Active -->
-      <div v-else class="max-w-3xl mx-auto space-y-5 md:space-y-8">
-        <!-- Progress -->
-        <UCard
-          :ui="{
-            root: 'bg-surface-container-low',
-            body: 'p-5 md:p-6',
-          }"
-        >
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-center">
-            <div class="md:col-span-2 flex flex-col gap-1">
-              <h2 class="font-headline text-lg md:text-xl font-extrabold text-on-surface">Tu Progreso</h2>
-              <p class="font-body text-on-surface-variant text-xs md:text-sm">Responde con calma. Tienes 4 opciones por cada pregunta.</p>
-              <div class="mt-3 md:mt-4 flex items-center gap-3 md:gap-4">
-                <div class="flex-1 h-2 md:h-3 bg-surface-container-high rounded-full overflow-hidden">
-                  <div class="h-full bg-primary rounded-full transition-all duration-500" :style="{ width: progressPercent + '%' }"></div>
-                </div>
-                <span class="font-label text-[10px] md:text-xs font-bold text-primary whitespace-nowrap">{{ currentIndex + 1 }} de {{ totalQuestions }}</span>
-              </div>
-            </div>
-            <div class="hidden md:flex justify-center">
-              <div class="relative w-24 h-24 flex items-center justify-center">
-                <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="var(--color-surface-container-high)" stroke-width="3" />
-                  <path
-                    class="transition-all duration-500"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none"
-                    stroke="var(--color-primary)"
-                    stroke-linecap="round"
-                    stroke-width="3"
-                    :stroke-dasharray="100"
-                    :stroke-dashoffset="strokeOffset"
-                  />
-                </svg>
-                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                  <span class="font-headline font-black text-primary text-xl tracking-tighter">{{ progressPercent }}%</span>
-                </div>
-              </div>
-            </div>
+      <!-- Quiz activo -->
+      <div v-else class="max-w-2xl mx-auto space-y-3 md:space-y-5">
+        <!-- Progreso -->
+        <div class="flex items-center gap-3">
+          <div class="flex-1 h-2 bg-surface-container-high rounded-full overflow-hidden">
+            <div class="h-full bg-primary rounded-full transition-all duration-500" :style="{ width: progressPercent + '%' }"></div>
           </div>
-        </UCard>
+          <span class="font-label text-[10px] font-bold text-primary whitespace-nowrap">{{ currentIndex + 1 }}/{{ totalQuestions }}</span>
+        </div>
+        <p v-if="!timerStarted" class="text-[10px] text-on-surface-variant text-center -mt-2">
+          El timer inicia cuando respondas
+        </p>
 
-        <!-- Question Card -->
+        <!-- Pregunta -->
         <UCard :ui="{ body: 'p-0' }">
-          <div class="p-5 md:p-8 border-b border-outline-variant/30">
-            <span class="font-label text-[10px] uppercase tracking-widest text-primary font-bold mb-2 block">{{ currentQuestion.categoria }}</span>
-            <h3 class="font-headline text-xl md:text-2xl font-bold leading-tight text-on-surface">
+          <div class="px-4 py-3 md:px-6 md:py-4 border-b border-outline-variant/30">
+            <UBadge color="primary" variant="soft" size="xs" class="mb-1.5">{{ currentQuestion.categoria }}</UBadge>
+            <h3 class="font-headline text-base md:text-lg font-bold leading-snug text-on-surface">
               {{ currentIndex + 1 }}. {{ currentQuestion.pregunta }}
             </h3>
           </div>
-          <div class="p-5 md:p-8 space-y-3">
+          <div class="p-3 md:p-5 space-y-2">
             <label
               v-for="(opcion, idx) in currentQuestion.opciones"
               :key="idx"
-              class="group relative flex items-center gap-4 p-4 md:p-5 rounded-xl cursor-pointer transition-all duration-200 border-2 active:scale-[0.98]"
+              class="group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 border-2 active:scale-[0.98]"
               :class="[optionClass(opcion), submitted ? 'pointer-events-none' : '']"
             >
-              <input
-                v-model="selectedAnswer"
-                type="radio"
-                :value="opcion"
-                class="sr-only"
-                :disabled="submitted"
-              />
-              <div
-                class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors shrink-0"
-                :class="radioClass(opcion)"
-              >
-                <div
-                  v-if="selectedAnswer === opcion || (submitted && opcion === currentQuestion.respuesta_correcta)"
-                  class="w-2.5 h-2.5 rounded-full bg-white"
-                ></div>
+              <input v-model="selectedAnswer" type="radio" :value="opcion" class="sr-only" :disabled="submitted" />
+              <div class="w-7 h-7 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 text-[10px] font-bold" :class="radioClass(opcion)">
+                <span v-if="!submitted || (opcion !== currentQuestion.respuesta_correcta && opcion !== selectedAnswer)" class="text-white">
+                  {{ ['A','B','C','D','E'][idx] }}
+                </span>
+                <UIcon v-else-if="opcion === currentQuestion.respuesta_correcta" name="i-lucide-check" class="text-white text-xs" />
+                <UIcon v-else name="i-lucide-x" class="text-white text-xs" />
               </div>
-              <span
-                class="font-body text-base md:text-lg transition-all flex-grow"
-                :class="selectedAnswer === opcion ? 'text-on-surface font-bold' : 'text-on-surface-variant group-hover:text-on-surface'"
-              >{{ opcion }}</span>
-              <UIcon
-                v-if="submitted && opcion === currentQuestion.respuesta_correcta"
-                name="i-lucide-check"
-                class="text-success text-xl"
-              />
-              <UIcon
-                v-else-if="submitted && opcion === selectedAnswer"
-                name="i-lucide-x"
-                class="text-error text-xl"
-              />
+              <span class="font-body text-sm transition-all flex-grow" :class="selectedAnswer === opcion ? 'text-on-surface font-bold' : 'text-on-surface-variant group-hover:text-on-surface'">
+                {{ opcion }}
+              </span>
             </label>
           </div>
 
@@ -280,71 +435,48 @@ const radioClass = (opcion: string) => {
             :icon="resultCorrect ? 'i-lucide-check-circle-2' : 'i-lucide-x-circle'"
             :color="resultCorrect ? 'success' : 'error'"
             variant="soft"
-            :title="resultCorrect ? '¡Correcto! Bien hecho.' : `Incorrecto. La respuesta correcta es: ${currentQuestion.respuesta_correcta}`"
-            class="mx-5 md:mx-8 mb-5 md:mb-6"
+            :title="resultCorrect ? '¡Correcto! +1 punto' : `Incorrecto. Respuesta: ${currentQuestion.respuesta_correcta}`"
+            class="mx-3 md:mx-5 mb-3 md:mb-5"
           />
         </UCard>
 
-        <!-- Actions -->
-        <div class="flex flex-col-reverse md:flex-row items-center justify-between gap-3 md:gap-6 pt-2">
+        <!-- Acciones -->
+        <div class="flex items-center justify-between gap-3">
           <UButton
             v-if="!submitted"
             color="neutral"
             variant="ghost"
-            size="xl"
-            block
-            class="md:w-auto uppercase tracking-widest"
+            size="md"
             @click="skipQuestion"
           >
-            Saltar pregunta
+            Saltar
           </UButton>
-          <div v-else class="w-full md:w-auto"></div>
+          <div v-else></div>
 
           <UButton
             v-if="!submitted"
             color="primary"
-            size="xl"
-            block
+            size="md"
             trailing-icon="i-lucide-send"
             :disabled="!selectedAnswer"
-            class="md:w-auto md:px-12"
             @click="handleSubmit"
           >
-            Enviar respuesta
+            Enviar
           </UButton>
           <UButton
             v-else
             color="primary"
-            size="xl"
-            block
+            size="md"
             trailing-icon="i-lucide-arrow-right"
-            class="md:w-auto md:px-12"
             @click="nextQuestion"
           >
-            {{ currentIndex < totalQuestions - 1 ? 'Siguiente pregunta' : 'Ver resultado' }}
+            {{ currentIndex < totalQuestions - 1 ? 'Siguiente' : 'Ver resultado' }}
           </UButton>
         </div>
       </div>
     </main>
 
-    <!-- Floating Tip -->
-    <UCard
-      :ui="{
-        root: 'fixed bottom-10 right-10 hidden lg:block max-w-xs z-40 relative overflow-hidden',
-        body: 'p-5',
-      }"
-      class="fixed bottom-10 right-10 hidden lg:block max-w-xs z-40"
-    >
-      <div class="flex items-center gap-3 mb-2">
-        <UIcon name="i-lucide-lightbulb" class="text-tertiary" />
-        <span class="font-label text-xs font-bold uppercase tracking-tight text-on-surface">Tip Académico</span>
-      </div>
-      <p class="font-body text-xs text-on-surface-variant leading-relaxed">
-        El quechua es una lengua aglutinante. Muchas palabras se forman añadiendo sufijos a una raíz léxica común. ¡Asegúrate de revisar los sufijos de cortesía!
-      </p>
-    </UCard>
-
-    <!-- Background blobs -->
+    <!-- Background -->
     <div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
       <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-primary/5 blur-[120px] rounded-full"></div>
       <div class="absolute top-[60%] -right-[5%] w-[30%] h-[30%] bg-tertiary/5 blur-[100px] rounded-full"></div>

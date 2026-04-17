@@ -14,7 +14,7 @@ const modalOpen = ref(false)
 const editingId = ref<string | null>(null)
 const saving = ref(false)
 const selectedCursoId = ref('')
-const opciones = ref(['', '', '', ''])
+const opciones = ref(['', '', '', '', ''])
 const form = reactive({ curso_id: '', semana_id: '', pregunta: '', categoria: 'general', respuesta_correcta: '' })
 
 const fetchData = async () => {
@@ -39,7 +39,7 @@ watch(selectedCursoId, fetchSemanas)
 
 const resetForm = () => {
   Object.assign(form, { curso_id: '', semana_id: '', pregunta: '', categoria: 'general', respuesta_correcta: '' })
-  opciones.value = ['', '', '', '']
+  opciones.value = ['', '', '', '', '']
   editingId.value = null
   selectedCursoId.value = ''
 }
@@ -84,7 +84,7 @@ const editQuiz = (quiz: any) => {
     respuesta_correcta: quiz.respuesta_correcta,
   })
   const ops = quiz.opciones || []
-  opciones.value = [ops[0] || '', ops[1] || '', ops[2] || '', ops[3] || '']
+  opciones.value = [ops[0] || '', ops[1] || '', ops[2] || '', ops[3] || '', ops[4] || '']
   editingId.value = quiz.id
   modalOpen.value = true
 }
@@ -116,7 +116,7 @@ const columns: TableColumn<any>[] = [
   { id: 'actions', header: '' },
 ]
 
-const letters = ['A', 'B', 'C', 'D']
+const letters = ['A', 'B', 'C', 'D', 'E']
 
 onMounted(fetchData)
 </script>

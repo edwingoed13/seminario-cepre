@@ -13,7 +13,8 @@ export const useAuth = () => {
 
   const fetchUser = async () => {
     try {
-      user.value = await $fetch<UserData>('/api/auth/me')
+      const headers = import.meta.server ? useRequestHeaders(['cookie']) : {}
+      user.value = await $fetch<UserData>('/api/auth/me', { headers })
     } catch {
       user.value = null
     }
