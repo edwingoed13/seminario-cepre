@@ -3,8 +3,11 @@ definePageMeta({ layout: 'default' })
 
 const supabase = useSupabaseClient()
 
-const email = ref('')
-const password = ref('')
+const state = reactive({
+  email: '',
+  password: '',
+})
+
 const showPassword = ref(false)
 const loading = ref(false)
 const errorMsg = ref('')
@@ -14,8 +17,8 @@ const handleLogin = async () => {
   loading.value = true
   try {
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.value,
-      password: password.value,
+      email: state.email,
+      password: state.password,
     })
     if (error) throw error
     navigateTo('/admin/dashboard')
@@ -28,93 +31,88 @@ const handleLogin = async () => {
 </script>
 
 <template>
-  <main class="flex-grow flex items-center justify-center px-8 py-12 min-h-screen">
+  <main class="min-h-screen flex items-center justify-center px-4 py-8 md:px-8 md:py-12">
     <div class="max-w-md w-full">
       <!-- Logo -->
-      <div class="flex flex-col items-center mb-10">
-        <div class="w-20 h-20 bg-slate-800 rounded-xl flex items-center justify-center mb-6 shadow-lg">
-          <span class="material-symbols-outlined text-white text-4xl">admin_panel_settings</span>
+      <div class="flex flex-col items-center mb-8 md:mb-10">
+        <div class="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-2xl flex items-center justify-center mb-5 md:mb-6 shadow-lg">
+          <UIcon name="i-lucide-shield-check" class="text-white text-3xl md:text-4xl" />
         </div>
-        <h1 class="font-headline font-black text-3xl tracking-tighter text-slate-800 mb-2">Panel Admin</h1>
-        <p class="font-body text-secondary text-center text-sm tracking-wide">
+        <h1 class="font-headline font-black text-2xl md:text-3xl tracking-tighter text-slate-800 mb-2">Panel Admin</h1>
+        <p class="font-body text-on-surface-variant text-center text-xs md:text-sm tracking-wide">
           CEPREUNA — Gestión de Seminarios
         </p>
       </div>
 
       <!-- Card -->
-      <div class="bg-surface-container-lowest p-8 md:p-10 rounded-[1.5rem] shadow-[0_8px_24px_rgba(26,28,28,0.06)]">
-        <div class="mb-8">
-          <span class="font-label font-bold text-[0.75rem] uppercase tracking-widest text-slate-500 block mb-1">Administrador</span>
-          <h2 class="font-headline font-bold text-2xl text-on-surface">Iniciar Sesión</h2>
+      <UCard :ui="{ body: 'p-6 md:p-8' }">
+        <div class="mb-6">
+          <span class="font-label font-bold text-[0.7rem] uppercase tracking-widest text-on-surface-variant block mb-1">Administrador</span>
+          <h2 class="font-headline font-bold text-xl md:text-2xl text-on-surface">Iniciar Sesión</h2>
         </div>
 
-        <!-- Error -->
-        <div v-if="errorMsg" class="mb-6 p-4 bg-error-container text-on-error-container rounded-lg text-sm font-body">
-          {{ errorMsg }}
-        </div>
+        <UAlert
+          v-if="errorMsg"
+          icon="i-lucide-triangle-alert"
+          color="error"
+          variant="soft"
+          :title="errorMsg"
+          class="mb-5"
+        />
 
-        <form class="space-y-6" @submit.prevent="handleLogin">
-          <!-- Email -->
-          <div>
-            <label class="block font-label font-semibold text-xs text-secondary mb-2 px-1" for="email">Correo electrónico</label>
-            <div class="relative group">
-              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-secondary">
-                <span class="material-symbols-outlined text-[20px]">mail</span>
-              </div>
-              <input
-                id="email"
-                v-model="email"
-                type="email"
-                placeholder="admin@cepreuna.edu.pe"
-                required
-                class="w-full bg-surface-container-high border-none rounded-lg py-4 pl-12 pr-4 text-on-surface font-body focus:ring-0 border-b-2 border-transparent transition-all"
-              />
-              <div class="absolute bottom-0 left-0 h-[2px] w-0 bg-slate-800 transition-all duration-300 group-focus-within:w-full"></div>
-            </div>
-          </div>
+        <UForm :state="state" class="space-y-5" @submit="handleLogin">
+          <UFormField label="Correo electrónico" name="email" required>
+            <UInput
+              v-model="state.email"
+              type="email"
+              placeholder="admin@cepreuna.edu.pe"
+              icon="i-lucide-mail"
+              size="xl"
+              class="w-full"
+              :ui="{ root: 'w-full' }"
+              required
+            />
+          </UFormField>
 
-          <!-- Password -->
-          <div>
-            <label class="block font-label font-semibold text-xs text-secondary mb-2 px-1" for="password">Contraseña</label>
-            <div class="relative group">
-              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-secondary">
-                <span class="material-symbols-outlined text-[20px]">lock</span>
-              </div>
-              <input
-                id="password"
-                v-model="password"
-                :type="showPassword ? 'text' : 'password'"
-                placeholder="••••••••"
-                required
-                class="w-full bg-surface-container-high border-none rounded-lg py-4 pl-12 pr-12 text-on-surface font-body focus:ring-0 border-b-2 border-transparent transition-all"
-              />
-              <button
-                type="button"
-                class="absolute inset-y-0 right-0 pr-4 flex items-center text-secondary hover:text-slate-800 transition-colors"
-                @click="showPassword = !showPassword"
-              >
-                <span class="material-symbols-outlined text-[20px]">
-                  {{ showPassword ? 'visibility_off' : 'visibility' }}
-                </span>
-              </button>
-              <div class="absolute bottom-0 left-0 h-[2px] w-0 bg-slate-800 transition-all duration-300 group-focus-within:w-full"></div>
-            </div>
-          </div>
+          <UFormField label="Contraseña" name="password" required>
+            <UInput
+              v-model="state.password"
+              :type="showPassword ? 'text' : 'password'"
+              placeholder="••••••••"
+              icon="i-lucide-lock"
+              size="xl"
+              class="w-full"
+              :ui="{ root: 'w-full' }"
+              required
+            >
+              <template #trailing>
+                <UButton
+                  :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+                  color="neutral"
+                  variant="link"
+                  size="sm"
+                  :padded="false"
+                  @click="showPassword = !showPassword"
+                />
+              </template>
+            </UInput>
+          </UFormField>
 
-          <!-- Submit -->
-          <button
+          <UButton
             type="submit"
-            :disabled="loading"
-            class="w-full bg-slate-800 text-white font-headline font-bold text-lg py-4 rounded-xl shadow-lg hover:bg-slate-700 active:scale-[0.98] transition-all duration-200 mt-4 disabled:opacity-60"
-          >
-            {{ loading ? 'Ingresando...' : 'Ingresar' }}
-          </button>
-        </form>
-      </div>
+            :loading="loading"
+            color="neutral"
+            size="xl"
+            block
+            :label="loading ? 'Ingresando...' : 'Ingresar'"
+            :ui="{ base: 'bg-slate-800 hover:bg-slate-700 text-white' }"
+          />
+        </UForm>
+      </UCard>
 
       <!-- Footer -->
-      <footer class="mt-12 text-center">
-        <p class="text-[10px] text-secondary-fixed-dim font-label uppercase tracking-[0.2em]">
+      <footer class="mt-8 md:mt-12 text-center px-4">
+        <p class="text-[10px] text-on-surface-variant font-label uppercase tracking-[0.2em]">
           © 2026 UNIVERSIDAD NACIONAL DEL ALTIPLANO
         </p>
       </footer>

@@ -19,10 +19,10 @@ export const useAuth = () => {
     }
   }
 
-  const login = async (dni: string, password: string) => {
+  const login = async (dni: string, password: string, remember: boolean = true) => {
     const data = await $fetch<UserData>('/api/auth/login', {
       method: 'POST',
-      body: { dni, password },
+      body: { dni, password, remember },
     })
     user.value = data
     return data

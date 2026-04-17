@@ -1,10 +1,9 @@
 <template>
   <div class="bg-surface text-on-surface min-h-screen">
     <UiTopAppBar :show-nav="true" :active-route="activeRoute" :user-name="userName" :user-foto="userFoto" />
-    <main class="pt-28 pb-32 px-6 max-w-7xl mx-auto">
+    <main class="pt-20 md:pt-28 pb-8 md:pb-16 px-4 md:px-6 max-w-7xl mx-auto">
       <slot />
     </main>
-    <UiBottomNav :active="bottomActive" />
   </div>
 </template>
 
@@ -26,8 +25,4 @@ const activeRoute = computed(() => {
   return 'dashboard'
 })
 
-const bottomActive = computed<'inicio' | 'cursos' | 'perfil'>(() => {
-  if (route.path.startsWith('/curso') || route.path.startsWith('/quiz')) return 'cursos'
-  return 'inicio'
-})
 </script>

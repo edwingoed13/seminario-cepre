@@ -1,15 +1,20 @@
 <script setup lang="ts">
+import type { TableColumn } from '@nuxt/ui'
+
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 
 const supabase = useSupabaseClient()
+const toast = useToast()
+
 const materiales = ref<any[]>([])
 const cursos = ref<any[]>([])
 const semanas = ref<any[]>([])
 const loading = ref(true)
-const showForm = ref(false)
+const modalOpen = ref(false)
 const editingId = ref<string | null>(null)
+const saving = ref(false)
 const selectedCursoId = ref('')
-const form = ref({ semana_id: '', tipo: 'temario', nombre: '', archivo_url: '' })
+const form = reactive({ semana_id: '', tipo: 'temario', nombre: '', archivo_url: '' })
 
 const fetchData = async () => {
   loading.value = true
@@ -31,123 +36,182 @@ const fetchSemanas = async () => {
 watch(selectedCursoId, fetchSemanas)
 
 const resetForm = () => {
-  form.value = { semana_id: '', tipo: 'temario', nombre: '', archivo_url: '' }
+  Object.assign(form, { semana_id: '', tipo: 'temario', nombre: '', archivo_url: '' })
   editingId.value = null
   selectedCursoId.value = ''
-  showForm.value = false
+}
+
+const openNew = () => {
+  resetForm()
+  modalOpen.value = true
 }
 
 const saveMaterial = async () => {
-  if (editingId.value) {
-    await supabase.from('materiales').update(form.value).eq('id', editingId.value)
-  } else {
-    await supabase.from('materiales').insert(form.value)
+  saving.value = true
+  try {
+    if (editingId.value) {
+      await supabase.from('materiales').update({ ...form }).eq('id', editingId.value)
+      toast.add({ title: 'Material actualizado', icon: 'i-lucide-check-circle', color: 'success' })
+    } else {
+      await supabase.from('materiales').insert({ ...form })
+      toast.add({ title: 'Material creado', icon: 'i-lucide-check-circle', color: 'success' })
+    }
+    modalOpen.value = false
+    resetForm()
+    await fetchData()
+  } catch (e: any) {
+    toast.add({ title: 'Error', description: e.message, color: 'error' })
+  } finally {
+    saving.value = false
   }
-  resetForm()
-  await fetchData()
 }
 
 const editMaterial = (mat: any) => {
   selectedCursoId.value = mat.semanas?.curso_id || ''
-  form.value = { semana_id: mat.semana_id, tipo: mat.tipo, nombre: mat.nombre, archivo_url: mat.archivo_url }
+  Object.assign(form, {
+    semana_id: mat.semana_id,
+    tipo: mat.tipo,
+    nombre: mat.nombre,
+    archivo_url: mat.archivo_url,
+  })
   editingId.value = mat.id
-  showForm.value = true
+  modalOpen.value = true
 }
 
 const deleteMaterial = async (id: string) => {
   if (!confirm('¿Eliminar este material?')) return
   await supabase.from('materiales').delete().eq('id', id)
+  toast.add({ title: 'Material eliminado', color: 'warning' })
   await fetchData()
 }
+
+const cursoOptions = computed(() =>
+  cursos.value.map(c => ({ label: c.nombre, value: c.id }))
+)
+
+const semanaOptions = computed(() =>
+  semanas.value.map(s => ({ label: `Semana ${s.numero_semana}`, value: s.id }))
+)
+
+const tipoOptions = [
+  { label: 'Temario', value: 'temario' },
+  { label: 'Guía', value: 'guia' },
+]
+
+const columns: TableColumn<any>[] = [
+  { accessorKey: 'nombre', header: 'Material' },
+  { id: 'curso', header: 'Curso / Semana' },
+  { accessorKey: 'tipo', header: 'Tipo' },
+  { id: 'actions', header: '' },
+]
 
 onMounted(fetchData)
 </script>
 
 <template>
   <div>
-    <div class="flex items-center justify-between mb-8">
-      <div>
-        <h1 class="text-3xl font-extrabold tracking-tight font-headline">Materiales</h1>
-        <p class="text-slate-500 mt-1">Gestiona temarios y guías de estudio</p>
+    <div class="flex items-center justify-between mb-6 md:mb-8 gap-3">
+      <div class="min-w-0">
+        <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight font-headline">Materiales</h1>
+        <p class="text-slate-500 text-sm mt-1">Gestiona temarios y guías de estudio</p>
       </div>
-      <button @click="showForm = true" class="flex items-center gap-2 bg-slate-800 text-white px-5 py-3 rounded-lg font-semibold text-sm hover:bg-slate-700 transition-colors">
-        <span class="material-symbols-outlined text-[18px]">add</span>
-        Nuevo Material
-      </button>
+      <UButton
+        icon="i-lucide-plus"
+        color="neutral"
+        size="md"
+        :ui="{ base: 'bg-slate-800 hover:bg-slate-700 text-white' }"
+        @click="openNew"
+      >
+        <span class="hidden sm:inline">Nuevo Material</span>
+      </UButton>
     </div>
 
-    <!-- Form -->
-    <div v-if="showForm" class="bg-white rounded-xl p-6 shadow-sm border border-slate-100 mb-8">
-      <h3 class="font-bold text-lg mb-4">{{ editingId ? 'Editar Material' : 'Nuevo Material' }}</h3>
-      <form @submit.prevent="saveMaterial" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-semibold text-slate-600 mb-1">Curso</label>
-          <select v-model="selectedCursoId" required class="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm">
-            <option value="">Seleccionar curso</option>
-            <option v-for="c in cursos" :key="c.id" :value="c.id">{{ c.nombre }}</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-600 mb-1">Semana</label>
-          <select v-model="form.semana_id" required class="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm">
-            <option value="">Seleccionar semana</option>
-            <option v-for="s in semanas" :key="s.id" :value="s.id">Semana {{ s.numero_semana }}</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-600 mb-1">Nombre</label>
-          <input v-model="form.nombre" required class="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm" placeholder="Ej: Temario Semana 1" />
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-600 mb-1">Tipo</label>
-          <select v-model="form.tipo" class="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm">
-            <option value="temario">Temario</option>
-            <option value="guia">Guía</option>
-          </select>
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-sm font-semibold text-slate-600 mb-1">URL del archivo</label>
-          <input v-model="form.archivo_url" required type="url" class="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm" placeholder="https://drive.google.com/..." />
-        </div>
-        <div class="md:col-span-2 flex gap-3">
-          <button type="submit" class="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-slate-700">
-            {{ editingId ? 'Actualizar' : 'Crear' }}
-          </button>
-          <button type="button" @click="resetForm" class="px-6 py-2.5 rounded-lg font-semibold text-sm border border-slate-200 hover:bg-slate-50">Cancelar</button>
-        </div>
-      </form>
-    </div>
+    <UCard :ui="{ body: 'p-0' }">
+      <UTable
+        :data="materiales"
+        :columns="columns"
+        :loading="loading"
+        :empty-state="{ icon: 'i-lucide-file-text', label: 'No hay materiales registrados' }"
+      >
+        <template #nombre-cell="{ row }">
+          <span class="font-semibold">{{ row.original.nombre }}</span>
+        </template>
+        <template #curso-cell="{ row }">
+          <span class="text-slate-500 text-sm">
+            {{ row.original.semanas?.cursos?.nombre }} — Sem. {{ row.original.semanas?.numero_semana }}
+          </span>
+        </template>
+        <template #tipo-cell="{ row }">
+          <UBadge
+            :color="row.original.tipo === 'temario' ? 'primary' : 'secondary'"
+            variant="soft"
+            size="sm"
+            class="capitalize"
+          >
+            {{ row.original.tipo }}
+          </UBadge>
+        </template>
+        <template #actions-cell="{ row }">
+          <div class="flex justify-end gap-1">
+            <UButton
+              :to="row.original.archivo_url"
+              target="_blank"
+              icon="i-lucide-download"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              aria-label="Descargar"
+            />
+            <UButton
+              icon="i-lucide-pencil"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              aria-label="Editar"
+              @click="editMaterial(row.original)"
+            />
+            <UButton
+              icon="i-lucide-trash-2"
+              color="error"
+              variant="ghost"
+              size="sm"
+              aria-label="Eliminar"
+              @click="deleteMaterial(row.original.id)"
+            />
+          </div>
+        </template>
+      </UTable>
+    </UCard>
 
-    <!-- Table -->
-    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-      <table class="w-full text-sm">
-        <thead class="bg-slate-50 border-b border-slate-100">
-          <tr>
-            <th class="text-left px-6 py-4 font-semibold text-slate-600">Material</th>
-            <th class="text-left px-6 py-4 font-semibold text-slate-600">Curso / Semana</th>
-            <th class="text-left px-6 py-4 font-semibold text-slate-600">Tipo</th>
-            <th class="text-right px-6 py-4 font-semibold text-slate-600">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="loading"><td colspan="4" class="text-center py-12 text-slate-400">Cargando...</td></tr>
-          <tr v-else-if="materiales.length === 0"><td colspan="4" class="text-center py-12 text-slate-400">No hay materiales registrados</td></tr>
-          <tr v-for="mat in materiales" :key="mat.id" class="border-b border-slate-50 hover:bg-slate-50/50">
-            <td class="px-6 py-4 font-semibold">{{ mat.nombre }}</td>
-            <td class="px-6 py-4 text-slate-500">{{ mat.semanas?.cursos?.nombre }} — Sem. {{ mat.semanas?.numero_semana }}</td>
-            <td class="px-6 py-4">
-              <span :class="mat.tipo === 'temario' ? 'bg-indigo-100 text-indigo-600' : 'bg-teal-100 text-teal-600'" class="px-2.5 py-1 rounded-full text-xs font-semibold capitalize">
-                {{ mat.tipo }}
-              </span>
-            </td>
-            <td class="px-6 py-4 text-right">
-              <a :href="mat.archivo_url" target="_blank" class="text-slate-400 hover:text-blue-500 transition-colors mr-2"><span class="material-symbols-outlined text-[20px]">download</span></a>
-              <button @click="editMaterial(mat)" class="text-slate-400 hover:text-slate-800 transition-colors mr-2"><span class="material-symbols-outlined text-[20px]">edit</span></button>
-              <button @click="deleteMaterial(mat.id)" class="text-slate-400 hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <UModal v-model:open="modalOpen" :ui="{ content: 'max-w-2xl' }">
+      <template #content>
+        <UCard :ui="{ body: 'p-5 md:p-6' }">
+          <h3 class="font-bold text-xl mb-5 font-headline">{{ editingId ? 'Editar Material' : 'Nuevo Material' }}</h3>
+          <UForm :state="form" class="grid grid-cols-1 md:grid-cols-2 gap-4" @submit="saveMaterial">
+            <UFormField label="Curso" required>
+              <USelect v-model="selectedCursoId" :items="cursoOptions" placeholder="Seleccionar curso" class="w-full" :ui="{ root: 'w-full' }" required />
+            </UFormField>
+            <UFormField label="Semana" name="semana_id" required>
+              <USelect v-model="form.semana_id" :items="semanaOptions" placeholder="Seleccionar semana" class="w-full" :ui="{ root: 'w-full' }" required />
+            </UFormField>
+            <UFormField label="Nombre" name="nombre" required>
+              <UInput v-model="form.nombre" placeholder="Ej: Temario Semana 1" class="w-full" :ui="{ root: 'w-full' }" required />
+            </UFormField>
+            <UFormField label="Tipo" name="tipo">
+              <USelect v-model="form.tipo" :items="tipoOptions" class="w-full" :ui="{ root: 'w-full' }" />
+            </UFormField>
+            <UFormField label="URL del archivo" name="archivo_url" class="md:col-span-2" required>
+              <UInput v-model="form.archivo_url" type="url" placeholder="https://drive.google.com/..." icon="i-lucide-link" class="w-full" :ui="{ root: 'w-full' }" required />
+            </UFormField>
+            <div class="md:col-span-2 flex gap-3 justify-end">
+              <UButton type="button" color="neutral" variant="outline" @click="modalOpen = false">Cancelar</UButton>
+              <UButton type="submit" color="primary" :loading="saving">
+                {{ editingId ? 'Actualizar' : 'Crear' }}
+              </UButton>
+            </div>
+          </UForm>
+        </UCard>
+      </template>
+    </UModal>
   </div>
 </template>

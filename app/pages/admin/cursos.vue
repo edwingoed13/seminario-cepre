@@ -1,12 +1,17 @@
 <script setup lang="ts">
+import type { TableColumn } from '@nuxt/ui'
+
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 
 const supabase = useSupabaseClient()
+const toast = useToast()
+
 const cursos = ref<any[]>([])
 const loading = ref(true)
-const showForm = ref(false)
+const modalOpen = ref(false)
 const editingId = ref<string | null>(null)
-const form = ref({ nombre: '', descripcion: '', icono: 'language', temario: '' })
+const saving = ref(false)
+const form = reactive({ nombre: '', descripcion: '', icono: 'language', temario: '' })
 
 const fetchCursos = async () => {
   loading.value = true
@@ -16,119 +21,146 @@ const fetchCursos = async () => {
 }
 
 const resetForm = () => {
-  form.value = { nombre: '', descripcion: '', icono: 'language', temario: '' }
+  Object.assign(form, { nombre: '', descripcion: '', icono: 'language', temario: '' })
   editingId.value = null
-  showForm.value = false
+}
+
+const openNew = () => {
+  resetForm()
+  modalOpen.value = true
 }
 
 const saveCurso = async () => {
-  if (editingId.value) {
-    await supabase.from('cursos').update(form.value).eq('id', editingId.value)
-  } else {
-    await supabase.from('cursos').insert(form.value)
+  saving.value = true
+  try {
+    if (editingId.value) {
+      await supabase.from('cursos').update({ ...form }).eq('id', editingId.value)
+      toast.add({ title: 'Curso actualizado', icon: 'i-lucide-check-circle', color: 'success' })
+    } else {
+      await supabase.from('cursos').insert({ ...form })
+      toast.add({ title: 'Curso creado', icon: 'i-lucide-check-circle', color: 'success' })
+    }
+    modalOpen.value = false
+    resetForm()
+    await fetchCursos()
+  } catch (e: any) {
+    toast.add({ title: 'Error al guardar', description: e.message, color: 'error' })
+  } finally {
+    saving.value = false
   }
-  resetForm()
-  await fetchCursos()
 }
 
 const editCurso = (curso: any) => {
-  form.value = { nombre: curso.nombre, descripcion: curso.descripcion || '', icono: curso.icono, temario: curso.temario || '' }
+  Object.assign(form, {
+    nombre: curso.nombre,
+    descripcion: curso.descripcion || '',
+    icono: curso.icono,
+    temario: curso.temario || '',
+  })
   editingId.value = curso.id
-  showForm.value = true
+  modalOpen.value = true
 }
 
 const deleteCurso = async (id: string) => {
   if (!confirm('¿Eliminar este curso y todo su contenido?')) return
   await supabase.from('cursos').delete().eq('id', id)
+  toast.add({ title: 'Curso eliminado', color: 'warning' })
   await fetchCursos()
 }
+
+const columns: TableColumn<any>[] = [
+  { accessorKey: 'nombre', header: 'Curso' },
+  { accessorKey: 'descripcion', header: 'Descripción' },
+  { id: 'actions', header: '' },
+]
 
 onMounted(fetchCursos)
 </script>
 
 <template>
   <div>
-    <div class="flex items-center justify-between mb-8">
-      <div>
-        <h1 class="text-3xl font-extrabold tracking-tight font-headline">Cursos</h1>
-        <p class="text-slate-500 mt-1">Gestiona los cursos de idiomas</p>
+    <div class="flex items-center justify-between mb-6 md:mb-8 gap-3">
+      <div class="min-w-0">
+        <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight font-headline">Cursos</h1>
+        <p class="text-slate-500 text-sm mt-1">Gestiona los cursos de idiomas</p>
       </div>
-      <button
-        @click="showForm = true"
-        class="flex items-center gap-2 bg-slate-800 text-white px-5 py-3 rounded-lg font-semibold text-sm hover:bg-slate-700 transition-colors"
+      <UButton
+        icon="i-lucide-plus"
+        color="neutral"
+        size="md"
+        :ui="{ base: 'bg-slate-800 hover:bg-slate-700 text-white' }"
+        @click="openNew"
       >
-        <span class="material-symbols-outlined text-[18px]">add</span>
-        Nuevo Curso
-      </button>
+        <span class="hidden sm:inline">Nuevo Curso</span>
+      </UButton>
     </div>
 
-    <!-- Form -->
-    <div v-if="showForm" class="bg-white rounded-xl p-6 shadow-sm border border-slate-100 mb-8">
-      <h3 class="font-bold text-lg mb-4">{{ editingId ? 'Editar Curso' : 'Nuevo Curso' }}</h3>
-      <form @submit.prevent="saveCurso" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-semibold text-slate-600 mb-1">Nombre</label>
-          <input v-model="form.nombre" required class="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-slate-300 focus:border-transparent" placeholder="Ej: Quechua" />
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-600 mb-1">Ícono (Material Symbols)</label>
-          <input v-model="form.icono" class="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-slate-300" placeholder="language" />
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-sm font-semibold text-slate-600 mb-1">Descripción</label>
-          <textarea v-model="form.descripcion" rows="2" class="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-slate-300 resize-none" placeholder="Descripción del curso..."></textarea>
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-sm font-semibold text-slate-600 mb-1">Temario (un tema por línea)</label>
-          <textarea v-model="form.temario" rows="8" class="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-slate-300 resize-none font-mono" placeholder="Verb tenses: Past, present and future...&#10;Short answers: Modal verbs...&#10;..."></textarea>
-        </div>
-        <div class="md:col-span-2 flex gap-3">
-          <button type="submit" class="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-slate-700">
-            {{ editingId ? 'Actualizar' : 'Crear' }}
-          </button>
-          <button type="button" @click="resetForm" class="px-6 py-2.5 rounded-lg font-semibold text-sm border border-slate-200 hover:bg-slate-50">
-            Cancelar
-          </button>
-        </div>
-      </form>
-    </div>
+    <UCard :ui="{ body: 'p-0' }">
+      <UTable
+        :data="cursos"
+        :columns="columns"
+        :loading="loading"
+        :empty-state="{ icon: 'i-lucide-book-open', label: 'No hay cursos registrados' }"
+      >
+        <template #nombre-cell="{ row }">
+          <div class="flex items-center gap-3">
+            <UIcon name="i-lucide-book-open" class="text-slate-400" />
+            <span class="font-semibold">{{ row.original.nombre }}</span>
+          </div>
+        </template>
+        <template #descripcion-cell="{ row }">
+          <span class="text-slate-500 line-clamp-1 max-w-xs">{{ row.original.descripcion }}</span>
+        </template>
+        <template #actions-cell="{ row }">
+          <div class="flex justify-end gap-1">
+            <UButton
+              icon="i-lucide-pencil"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              aria-label="Editar"
+              @click="editCurso(row.original)"
+            />
+            <UButton
+              icon="i-lucide-trash-2"
+              color="error"
+              variant="ghost"
+              size="sm"
+              aria-label="Eliminar"
+              @click="deleteCurso(row.original.id)"
+            />
+          </div>
+        </template>
+      </UTable>
+    </UCard>
 
-    <!-- Table -->
-    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-      <table class="w-full text-sm">
-        <thead class="bg-slate-50 border-b border-slate-100">
-          <tr>
-            <th class="text-left px-6 py-4 font-semibold text-slate-600">Curso</th>
-            <th class="text-left px-6 py-4 font-semibold text-slate-600">Descripción</th>
-            <th class="text-right px-6 py-4 font-semibold text-slate-600">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="loading">
-            <td colspan="4" class="text-center py-12 text-slate-400">Cargando...</td>
-          </tr>
-          <tr v-else-if="cursos.length === 0">
-            <td colspan="4" class="text-center py-12 text-slate-400">No hay cursos registrados</td>
-          </tr>
-          <tr v-for="curso in cursos" :key="curso.id" class="border-b border-slate-50 hover:bg-slate-50/50">
-            <td class="px-6 py-4">
-              <div class="flex items-center gap-3">
-                <span class="material-symbols-outlined text-slate-400">{{ curso.icono }}</span>
-                <span class="font-semibold">{{ curso.nombre }}</span>
-              </div>
-            </td>
-            <td class="px-6 py-4 text-slate-500 max-w-xs truncate">{{ curso.descripcion }}</td>
-            <td class="px-6 py-4 text-right">
-              <button @click="editCurso(curso)" class="text-slate-400 hover:text-slate-800 transition-colors mr-2" title="Editar">
-                <span class="material-symbols-outlined text-[20px]">edit</span>
-              </button>
-              <button @click="deleteCurso(curso.id)" class="text-slate-400 hover:text-red-500 transition-colors" title="Eliminar">
-                <span class="material-symbols-outlined text-[20px]">delete</span>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <!-- Modal Form -->
+    <UModal v-model:open="modalOpen" :ui="{ content: 'max-w-2xl' }">
+      <template #content>
+        <UCard :ui="{ body: 'p-5 md:p-6' }">
+          <h3 class="font-bold text-xl mb-5 font-headline">{{ editingId ? 'Editar Curso' : 'Nuevo Curso' }}</h3>
+          <UForm :state="form" class="grid grid-cols-1 md:grid-cols-2 gap-4" @submit="saveCurso">
+            <UFormField label="Nombre" name="nombre" required>
+              <UInput v-model="form.nombre" placeholder="Ej: Quechua" class="w-full" :ui="{ root: 'w-full' }" required />
+            </UFormField>
+            <UFormField label="Ícono" name="icono">
+              <UInput v-model="form.icono" placeholder="language" class="w-full" :ui="{ root: 'w-full' }" />
+            </UFormField>
+            <UFormField label="Descripción" name="descripcion" class="md:col-span-2">
+              <UTextarea v-model="form.descripcion" :rows="2" placeholder="Descripción del curso..." class="w-full" :ui="{ root: 'w-full' }" />
+            </UFormField>
+            <UFormField label="Temario (un tema por línea)" name="temario" class="md:col-span-2">
+              <UTextarea v-model="form.temario" :rows="8" placeholder="Verb tenses: Past, present and future..." class="w-full font-mono text-sm" :ui="{ root: 'w-full' }" />
+            </UFormField>
+            <div class="md:col-span-2 flex gap-3 justify-end">
+              <UButton type="button" color="neutral" variant="outline" @click="modalOpen = false">Cancelar</UButton>
+              <UButton type="submit" color="primary" :loading="saving">
+                {{ editingId ? 'Actualizar' : 'Crear' }}
+              </UButton>
+            </div>
+          </UForm>
+        </UCard>
+      </template>
+    </UModal>
   </div>
 </template>

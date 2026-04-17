@@ -3,7 +3,7 @@ import { getPool } from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  const { dni, password } = body
+  const { dni, password, remember = true } = body
 
   if (!dni || !password) {
     throw createError({ statusCode: 400, message: 'DNI y contraseña son requeridos' })
@@ -37,6 +37,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, message: 'Tu cuenta está inactiva. Contacta a soporte.' })
   }
 
+  const tokenExpiry = remember ? '60d' : '24h'
+  const cookieMaxAge = remember ? 60 * 60 * 24 * 60 : undefined
+
   const token = jwt.sign(
     {
       id: estudiante.id,
@@ -47,14 +50,14 @@ export default defineEventHandler(async (event) => {
       foto: estudiante.foto,
     },
     config.jwtSecret,
-    { expiresIn: '7d' }
+    { expiresIn: tokenExpiry }
   )
 
   setCookie(event, 'auth_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
+    ...(cookieMaxAge ? { maxAge: cookieMaxAge } : {}),
     path: '/',
   })
 

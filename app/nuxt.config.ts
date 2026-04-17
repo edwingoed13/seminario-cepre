@@ -1,12 +1,22 @@
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
+  srcDir: '.',
+  serverDir: 'server',
   devtools: { enabled: false },
 
   modules: [
-    '@nuxtjs/tailwindcss',
+    '@nuxt/ui',
     '@nuxtjs/supabase',
     '@nuxtjs/google-fonts',
   ],
+
+  css: ['~/assets/css/main.css'],
+
+  colorMode: {
+    preference: 'light',
+    fallback: 'light',
+    classSuffix: '',
+  },
 
   runtimeConfig: {
     dbHost: process.env.DB_HOST,
@@ -19,7 +29,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      htmlAttrs: { lang: 'es' },
+      htmlAttrs: { lang: 'es', class: 'light' },
     },
   },
 
@@ -36,6 +46,13 @@ export default defineNuxtConfig({
 
   supabase: {
     redirect: false,
+    clientOptions: {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    },
   },
 
   ssr: true,
@@ -44,7 +61,4 @@ export default defineNuxtConfig({
     '/': { redirect: '/login' },
   },
 
-  tailwindcss: {
-    cssPath: '~/assets/css/main.css',
-  },
 })
